@@ -99,6 +99,7 @@ public:
 
 
 
+
   void calc_degree()
   {
 //	  thrust::make_counting_iterator()
@@ -264,6 +265,7 @@ public:
   }
   /*
   *  Print graph coo format
+  *  Print is on  HOST
   */
   void print_coo_graph()
   {

@@ -71,7 +71,7 @@ __global__ void my_sum(domain a, domain b, domain c)
 
 		{
 			c[index] = a[index] + b[index];
-			printf("index %d = %u  \n", index, c[index]);
+			printf(" %d  + %d = %d \n", a[index], b[index], c[index]);
 		}
 	}
 
@@ -172,15 +172,17 @@ int main()
 	int vertex_number = 50;
 	int edges_per_vertex = 4;
 
-	thrust::device_vector<vertex> sum(test_graph.from_array.size() + test_graph.to_array.size());
-	domain f1 = 
+	thrust::device_vector<vertex> sum(vertex_number* edges_per_vertex);
 	test_graph.random_coo_graph(vertex_number, edges_per_vertex);
 	test_graph.print_coo_graph();
-	test_graph.calc_degree();
-	my_sum<<<100, 100>>>(thrust::raw_pointer_cast(test_graph.from_array),
-		thrust::raw_pointer_cast(test_graph.to_array), 
-		thrust::raw_pointer_cast(sum));
 
+	int size = test_graph.to_array.size();
+	domain f1 = thrust::raw_pointer_cast(test_graph.from_array.data());
+	domain f2 = thrust::raw_pointer_cast(test_graph.to_array.data());
+//	test_graph.calc_degree();
+	my_sum<<<1, size>>>(f1, f2, thrust::raw_pointer_cast(sum.data()));
+	cuda_print<<<1, size>>>(thrust::raw_pointer_cast(sum.data()), size);
+//	print_vector(thrust::raw_pointer_cast(sum.data()), 50);
 
 	//test_graph.random_coo_graph_expr(vertex_number, edges_per_vertex);
 	//cout << "Must print ";
