@@ -44,9 +44,13 @@ struct arbitrary_functor
 };
 
 
-
+/*
+* Class Graph
+* representation
+*/
 class Graph
 {
+
 public:
 
 	// CSR graph format
@@ -92,7 +96,7 @@ public:
       // For directed
       return directed? (double)number_of_edges/ (number_of_vertex * (number_of_vertex - 1)) :  (double)2 * number_of_edges/ (number_of_vertex * (number_of_vertex - 1));
   }
- 
+
 
 
   void calc_degree()
@@ -101,10 +105,10 @@ public:
 	  // #TODO try to make directly
 	//  thrust::device_vector<vertex> merged = thrust::merge(from_array.begin(), from_array.end(), to_array.begin(), to_array.end(), merged);
 	  vertex_degrees.reserve(number_of_vertex);
-	
-	 int d = 	 
+
+	 int d =
 	  thrust::count(from_array.begin(), from_array.end(), 0);
-//	 thrust::for_each(thrust::constant_iterator<vertex>(0), thrust::constant_iterator<vertex>(number_of_vertex), 
+//	 thrust::for_each(thrust::constant_iterator<vertex>(0), thrust::constant_iterator<vertex>(number_of_vertex),
 //	thrust::count(from_array.begin(), from_array.end(), count_functor(from_array, vertex_degrees));
 //	 thrust::transform(from_array.begin(), from_array.end(), vertex_degrees.begin(), thrust::constant_iterator<vertex>(2));
 	 cout << "The degree " << d;
@@ -177,7 +181,7 @@ public:
   */
   void random_coo_graph(int vertex_num, int max_num_per_vertex)
   {
-	  
+
 	  int offset = 1;
 
 	  directed = false;
@@ -186,27 +190,27 @@ public:
 	  number_of_vertex = vertex_num;
 	  from_array.reserve(max_num_per_vertex*number_of_vertex);
 	  to_array.reserve(max_num_per_vertex*number_of_vertex);
-	
+
 
 	  // Random seed
 	  srand(time(NULL));
 
 	  for (int current_vertex = 0; current_vertex < vertex_num-2; current_vertex++)
 	  {
-		  // Generating data for all the vertex 
-		
+		  // Generating data for all the vertex
+
 		  int number_of_edges = rand() % max_num_per_vertex;
 		  for (int j = 0; j < number_of_edges; j++)
 		  {
 			  int rand_vertex = current_vertex+1 + rand() % (vertex_num-current_vertex);
-			
+
 			  if (rand_vertex < vertex_num)
 			  //  if (thrust::find(to_array.begin(), to_array.end(), rand_vertex) != to_array.end())
 			  {
 				  from_array.push_back(current_vertex);
 				  to_array.push_back(rand_vertex);
 			  }
-			
+
 		  }
 	  }
 
@@ -227,14 +231,14 @@ public:
 	  //number_of_edges = edge_num;
 	  number_of_vertex = vertex_num;
 	  from_to_array.reserve(2*max_num_per_vertex*number_of_vertex);
-	 
+
 
 	  // Random seed
 	  srand(time(NULL));
 
 	  for (int current_vertex = 0; current_vertex < vertex_num - 2; current_vertex++)
 	  {
-		  // Generating data for all the vertex 
+		  // Generating data for all the vertex
 
 		  int number_of_edges = rand() % max_num_per_vertex;
 		  for (int j = 0; j < number_of_edges; j++)
@@ -276,7 +280,7 @@ public:
 	  }
 	  cout << endl;
 
-	
+
   }
 
   /*
@@ -298,7 +302,7 @@ public:
   }
 
   /**
-  *	
+  *
   */
   void random_sparse_underict_graph(int vertex_num)
   {
