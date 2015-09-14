@@ -159,19 +159,11 @@ void thrust_test()
 
 int main()
 {
-//  const int size = 500;
-/*	domain a;
-	domain b;
-	domain c;
- 	 a = (domain)malloc(size*sizeof(field));
- 	 b = (domain)malloc(size*sizeof(field));
- 	 c = (domain)malloc(size*sizeof(field));
-*/
 	Graph test_graph;
-	//
+	// Graph properties
 	int vertex_number = 50;
 	int edges_per_vertex = 4;
-
+ // 
 	thrust::device_vector<vertex> sum(vertex_number* edges_per_vertex);
 	test_graph.random_coo_graph(vertex_number, edges_per_vertex);
 	test_graph.print_coo_graph();

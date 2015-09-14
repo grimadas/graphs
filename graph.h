@@ -2,7 +2,6 @@
 *  CUDA graph representation
 *  author: Bulat
 *  graph.h
-*
 */
 #ifndef graph_h
 #define graph_h
@@ -23,26 +22,12 @@
 #include <thrust/merge.h>
 
 using namespace std;
+
 #define vertex  unsigned int
 #define edge  unsigned int
 
 #define domain vertex*
 #define field  vertex
-
-// __global__ void CUDA_APSP(Graph* graph);
-// void APSP();
-
-struct arbitrary_functor
-{
-	template <typename Tuple>
-	__host__ __device__
-		void operator()(Tuple t)
-	{
-			// D[i] = A[i] + B[i] * C[i];
-			thrust::get<3>(t) = thrust::get<0>(t) +thrust::get<1>(t) * thrust::get<2>(t);
-		}
-};
-
 
 /*
 * Class Graph
@@ -51,7 +36,7 @@ struct arbitrary_functor
 class Graph
 {
 
-public:
+private:
 
 	// CSR graph format
   thrust::device_vector<vertex> vertex_array;
@@ -59,12 +44,14 @@ public:
   // COO graph format (coordinate list)
   thrust::device_vector<vertex> from_array;
   thrust::device_vector<vertex> to_array;
-  // Experimental COO combined in one
-  thrust::device_vector<vertex> from_to_array;
+	// Distance oracle
+
+	// Vertex adjacency
+	typedef device_vector<vertex> VertexSet;
+	thrust::device_vector<VertexSet> adj_list;
 
   // Additional arrays
   thrust::device_vector<int> vertex_degrees;
-  //
   thrust::device_vector<thrust::device_vector<vertex>> adj_list;
 
   // Storing shortest path in COO format matrix
