@@ -160,77 +160,13 @@ void thrust_test()
 int main()
 {
 	Graph test_graph;
-	// Graph properties
-	int vertex_number = 50;
-	int edges_per_vertex = 4;
- // 
-	thrust::device_vector<vertex> sum(vertex_number* edges_per_vertex);
-	test_graph.random_coo_graph(vertex_number, edges_per_vertex);
+	
+	test_graph.init_test_graph();
+	test_graph.print_coo_graph();
+	test_graph.test_func();
 	test_graph.print_coo_graph();
 
-	int size = test_graph.to_array.size();
-	domain f1 = thrust::raw_pointer_cast(test_graph.from_array.data());
-	domain f2 = thrust::raw_pointer_cast(test_graph.to_array.data());
-//	test_graph.calc_degree();
-	my_sum<<<1, size>>>(f1, f2, thrust::raw_pointer_cast(sum.data()));
-	cuda_print<<<1, size>>>(thrust::raw_pointer_cast(sum.data()), size);
-//	print_vector(thrust::raw_pointer_cast(sum.data()), 50);
-
-	//test_graph.random_coo_graph_expr(vertex_number, edges_per_vertex);
-	//cout << "Must print ";
-	//test_graph.print_coo_graph_expr();
-	//cout << endl <<"Density of graph " <<test_graph.get_density();
 
 
-  // --------------------------------
-
-/*	domain cu_a;
-	domain cu_b;
-	domain cu_c;
-
-	cudaMalloc((void**)&cu_a, size*sizeof(field));
-	cudaMalloc((void**)&cu_b, size*sizeof(field));
-	cudaMalloc((void**)&cu_c, size*sizeof(field)); */
-
-
-	// -------------------------------
-	/* Filling with zeros */
-/* simple_fill(a, size);
-	printf("A: \n");
-	print_vector(a, size);
-//	printf("Vector a: \n");
-//	print_vector(a, size);
-	simple_fill(b, size);
-//	simple_fill(c, size);
-	// ------------------------------
-	cudaMemcpy(cu_a, a, size * sizeof(field), cudaMemcpyHostToDevice);
-	cudaMemcpy(cu_b, b, size * sizeof(field), cudaMemcpyHostToDevice);
-
-	dim3 grid_size(1);
-  dim3 block_size(size);
-	cuda_change<<<grid_size, block_size>>>(cu_a, size);
-	cuda_change<<<grid_size, block_size>>>(cu_b, size);
-
-	//cuda_print<<<grid_size, block_size>>>(cu_a, size);
-	// main function
-	clock_t begin = clock();
-  my_sum<<<grid_size, block_size>>>(cu_a,
-		 cu_b, cu_c, size);
-  clock_t end = clock();
-  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-
-	// Place memory back to CPU
-	printf("C array \n");
-  //cuda_print<<<grid_size, block_size>>>(cu_c, size);
- 	cudaMemcpy(c, cu_c, size * sizeof(field), cudaMemcpyDeviceToHost);
-
-
-	printf("%f \n", elapsed_secs);
-	//print_vector(a, size);
-//	print_vector(b, size);
-  print_vector(c, size); */
-
-//	thrust_test();
-
-  return 0;
+	return 0;
 }

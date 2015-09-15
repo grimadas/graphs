@@ -77,32 +77,7 @@ public:
 
   }
 
-	/*
-	*	Reading function
-	* Input: FileName
-	*/
-	void read_CSR_graph(string file_name)
-	{
-		ifstream graph_file;
-		int vertex_num, edge_num;
-  	myfile.open ("graph.txt");
-		myfile >> vertex_num >> edge_num;
-		// reserve maximum value needed
-		vertex_array_exp.reserve(vertex_num*(L_VALUE+1));
-		edge_array_exp.reserve(vertex_num*vertex_num) // TODO more efficient
-		// Read a pait of vertex - vertex forming an edge
-		int a, b;
-		while (myfile >> a >> b)
-		{
-			// Increment offset
-			vertex_array_exp[a]++;
-			// add new connection to edge array
-			edge_array_exp.append(b);
-		}
-		// Reading from file
-		myfile.close();
 
-	}
 
   void random_graph()
   {
@@ -115,7 +90,15 @@ public:
       return directed? (double)number_of_edges/ (number_of_vertex * (number_of_vertex - 1)) :  (double)2 * number_of_edges/ (number_of_vertex * (number_of_vertex - 1));
   }
 
-
+  void test_func()
+  {
+	
+		  // thrust::merge(from_array.begin(), from_array.end(), to_array.begin(), to_array.end(), )
+		  from_array.insert(from_array.end(), to_array.begin(), to_array.end());
+		  
+		  int i = thrust::count(from_array.begin(), from_array.end(), 2);
+		  printf("2 degree %d ", i);
+  }	
 
 
   void calc_degree()
@@ -249,7 +232,7 @@ public:
 
 	  //number_of_edges = edge_num;
 	  number_of_vertex = vertex_num;
-	  from_to_array.reserve(2*max_num_per_vertex*number_of_vertex);
+//	  from_to_array.reserve(2*max_num_per_vertex*number_of_vertex);
 
 
 	  // Random seed
@@ -268,8 +251,8 @@ public:
 				  //  if (thrust::find(to_array.begin(), to_array.end(), rand_vertex) != to_array.end())
 			  {
 			//	  cout << current_vertex << " ok" << endl;
-				  from_to_array[current_vertex + j] = current_vertex;
-				  from_to_array[2 * current_vertex + j] = rand_vertex;
+	//			  from_to_array[current_vertex + j] = current_vertex;
+		//		  from_to_array[2 * current_vertex + j] = rand_vertex;
 			//	  cout << current_vertex << " still ok" << endl;
 			  }
 
@@ -303,21 +286,64 @@ public:
 
   }
 
-  /*
-  *  Print graph coo format
-  */
-  void print_coo_graph_expr()
+ 
+  void init_test_graph()
   {
-	  cout << "Size "<< from_to_array.size();
-	  cout << " BEGIN " << *from_to_array.begin();
-	  cout << " END " << *from_to_array.end();
+      // COO format
+	  read_COO_format("graph.txt");
+
+      // CSR format
+//	  read_CSR_graph("graph.txt");
+
+  }
 
 
-	  for (vertex i = 0; i < from_to_array.size(); i++)
+  void read_COO_format(string file_name)
+  {
+	  ifstream myfile;
+	  int vertex_num, edge_num;
+	  myfile.open(file_name);
+	  myfile >> vertex_num >> edge_num;
+	  printf("%d %d \n", vertex_num, edge_num);
+	  // reserve maximum value needed
+	  from_array.reserve(edge_num);
+	  to_array.reserve(edge_num);
+	  // Read a pair of vertex - vertex forming an edge
+	  int a, b;
+	  while (myfile >> a >> b)
 	  {
-		  cout << from_to_array[i] << " -> " << from_to_array[from_to_array.size()/2 + i] << endl;
+		  from_array.push_back(a);
+		  to_array.push_back(b);
 	  }
+	  // Reading from file
+	  myfile.close();
+  }
 
+
+  /*
+  *	Reading function
+  * Input: FileName
+  */
+  void read_CSR_graph(string file_name)
+  {
+	  ifstream myfile;
+	  int vertex_num, edge_num;
+	  myfile.open(file_name);
+	  myfile >> vertex_num >> edge_num;
+	  // reserve maximum value needed
+	  vertex_array_exp.reserve(vertex_num*(L_VALUE + 1));
+	  edge_array_exp.reserve(vertex_num*vertex_num); // TODO more efficient space wasting assumption
+	  // Read a pait of vertex - vertex forming an edge
+	  int a, b;
+	  while (myfile >> a >> b)
+	  {
+		  // Increment offset
+		  vertex_array_exp.push_back(a);
+		  // add new connection to edge array
+		  edge_array_exp.push_back(b);
+	  }
+	  // Reading from file
+	  myfile.close();
 
   }
 
