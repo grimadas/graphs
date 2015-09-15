@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <ctime>
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <time.h>
 // Thrust includes
@@ -38,21 +39,24 @@ class Graph
 
 private:
 
+	int L_VALUE = 1;
+
 	// CSR graph format
   thrust::device_vector<vertex> vertex_array;
   thrust::device_vector<edge> edge_array;
+	// CSR with levels graph format
+	thrust::device_vector<vertex> vertex_array_exp;
+  thrust::device_vector<edge> edge_array_exp;
+
   // COO graph format (coordinate list)
   thrust::device_vector<vertex> from_array;
   thrust::device_vector<vertex> to_array;
 	// Distance oracle
 
 	// Vertex adjacency
-	typedef device_vector<vertex> VertexSet;
-	thrust::device_vector<VertexSet> adj_list;
 
   // Additional arrays
   thrust::device_vector<int> vertex_degrees;
-  thrust::device_vector<thrust::device_vector<vertex>> adj_list;
 
   // Storing shortest path in COO format matrix
   thrust::device_vector<vertex> from_array_SP;
@@ -72,6 +76,33 @@ public:
   {
 
   }
+
+	/*
+	*	Reading function
+	* Input: FileName
+	*/
+	void read_CSR_graph(string file_name)
+	{
+		ifstream graph_file;
+		int vertex_num, edge_num;
+  	myfile.open ("graph.txt");
+		myfile >> vertex_num >> edge_num;
+		// reserve maximum value needed
+		vertex_array_exp.reserve(vertex_num*(L_VALUE+1));
+		edge_array_exp.reserve(vertex_num*vertex_num) // TODO more efficient
+		// Read a pait of vertex - vertex forming an edge
+		int a, b;
+		while (myfile >> a >> b)
+		{
+			// Increment offset
+			vertex_array_exp[a]++;
+			// add new connection to edge array
+			edge_array_exp.append(b);
+		}
+		// Reading from file
+		myfile.close();
+
+	}
 
   void random_graph()
   {
