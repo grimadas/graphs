@@ -159,13 +159,11 @@ void thrust_test()
 
 int main()
 {
-	Graph test_graph;
-	
-	test_graph.init_test_graph();
-	test_graph.print_coo_graph();
-	test_graph.test_func();
-	test_graph.print_coo_graph();
+	init_test_graph();
 
+	test_func();
+
+	
 
 
 	return 0;
