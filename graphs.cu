@@ -9,22 +9,63 @@
 #include <thrust/device_vector.h>
 
 
-
 __global__ void CUDA_APSP()
 {
 
 }
 
+__shared__ __device__ int iter_koef;
 
-__global__ void vector_sum(domain a, domain b, domain result, int size)
+__global__ void a_iter(domain a, domain b, domain c, int k)
 {
+	int index =
+		blockIdx.x *blockDim.x +
+		threadIdx.x;
+	if (a[index] == k)
+	{
+		c[iter_koef] = b[iter_koef];
+		iter_koef++;
+		__syncthreads();
+
+	}
 
 }
 
-void simple_sum(domain a, domain b, domain result, int size)
+
+__global__ void b_iter(domain a, domain b, domain c, int k)
 {
+	int index =
+		blockIdx.x *blockDim.x +
+		threadIdx.x;
+	if (b[index] == k)
+	{
+		c[iter_koef] = a[iter_koef];
+		iter_koef++;
+		__syncthreads();
+
+	}
 
 }
+
+__global__ void k_iter(domain a, domain b, domain c, int size)
+{
+	int index = blockIdx.x *blockDim.x +
+		threadIdx.x;
+//	a_iter<<<1, size>>>(a, b, c, index);
+//	b_iter<<<1, size>>>(a, b, c, index);
+}
+/*
+void combine_edges()
+{
+	
+	domain a = thrust::raw_pointer_cast(from_array.data());
+	domain b = thrust::raw_pointer_cast(to_array.data());
+	full_edge_array.reserve(L_VALUE * 2 * number_of_edges);
+	domain c = thrust::raw_pointer_cast(&(full_edge_array[0]));
+
+
+	k_iter << <1, number_of_vertex >> >(a,b,c,number_of_edges);
+}*/
 
 void simple_zero_fill(domain a, int size)
 {
@@ -75,6 +116,12 @@ __global__ void my_sum(domain a, domain b, domain c)
 		}
 	}
 
+
+__global__ void calc_a()
+{
+
+}
+
  __global__ void cuda_change(domain a, int size)
 	{
 
@@ -106,64 +153,10 @@ __shared__ domain  a;
 
 
 
-void thrust_test()
-{
-	using namespace thrust;
-	int major = THRUST_MAJOR_VERSION;
-	int minor = THRUST_MINOR_VERSION;
-
-	std::cout << "Thrust v" << major << "." << minor << std::endl;
-
-	// H has storage for 4 integers
-	thrust::host_vector<int> H(4);
-
-	// initialize individual elements
-	H[0] = 14;
-	H[1] = 20;
-	H[2] = 38;
-	H[3] = 46;
-
-	// H.size() returns the size of vector H
-	std::cout << "H has size " << H.size() << std::endl;
-
-	// print contents of H
-	for(int i = 0; i < H.size(); i++)
-	{
-		std::cout << "H[" << i << "] = " << H[i] << std::endl;
-	}
-
-	// resize H
-	H.resize(2);
-
-	std::cout << "H now has size " << H.size() << std::endl;
-
-	// Copy host_vector H to device_vector D
-	device_vector<int> D = H;
-
-	// elements of D can be modified
-	// D[0] = 99;
-    // 	D[1] = 88;
-
-	// print contents of D
-	for(int i = 0; i < D.size(); i++)
-	{
-		std::cout << "D[" << i << "] = " << D[i] << std::endl;
-	}
-
-	// H and D are automatically destroyed when the function returns
-
-
-
-}
-
 
 int main()
 {
 	init_test_graph();
-
-	test_func();
-
-	
 
 
 	return 0;

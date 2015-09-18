@@ -550,7 +550,7 @@ using namespace std;
 	 }
 	 cout << endl;
 
-	 thrust::reduce_by_key(from_array.begin(), from_array.end(), to_array.begin(), temp_array.begin(), temp_from_to_array.begin(), thrust::equal_to<vertex>());
+	// thrust::reduce_by_key(from_array.begin(), from_array.end(), to_array.begin(), temp_array.begin(), temp_from_to_array.begin(), thrust::<vertex>());
 
 	 cout << "Keys vertex  ";
 	 for (auto iter : temp_array)
@@ -569,6 +569,37 @@ using namespace std;
 
 	 //  int i = thrust::count(from_array.begin(), to_array.end(), 2);
 	// printf("i degree %d ", i);
+	}
+
+	
+
+	struct assign_functor
+	{
+		template <typename Tuple>
+		__device__
+			void operator()(Tuple t, domain paired)
+		{
+				thrust::get<1>(t) = (float)thrust::get<0>(t);
+			}
+	};
+
+	void convert()
+	{
+		
+		thrust::counting_iterator<vertex> first(0);
+		thrust::counting_iterator<vertex> last = first + number_of_edges;
+
+		thrust::for_each(
+			thrust::make_zip_iterator(
+			thrust::make_tuple(first, from_array.begin())
+			),
+			thrust::make_zip_iterator(
+			thrust::make_tuple(last, from_array.end())
+			),
+			assign_functor()
+			);
+
+	
 	}
 
 
