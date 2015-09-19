@@ -467,10 +467,10 @@ using namespace std;
 
     struct counter2
     {
-  	  __host__ 
+  	  __host__
   	  vertex operator()(vertex x)
   	  {
-		
+
 		//  return  thrust::count( from_array.begin(), from_array.end(), x);
 		  return thrust::count(from_array.begin(), to_array.end(), x);
   	  }
@@ -485,7 +485,7 @@ using namespace std;
   	 __host__ __device__
   	 counter(thrust::device_vector<vertex>::iterator a, thrust::device_vector<vertex>::iterator b) : f_b(a), f_e(b) {}
   	// counter(vertex a) : f_b(a) {}
-  	 __host__ 
+  	 __host__
   	  vertex operator()(vertex x)
   	  {
   		  int i =
@@ -507,42 +507,108 @@ using namespace std;
 
     };
 
+   struct converter
+   {
+	   __host__ __device__
+	   converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
+
+	   __host__ __device__
+		   field operator()(field x)
+	   {
+			   if (x < size)
+			   {
+				   return b[x];
+			   }
+			   else
+			   {
+				   return a[x - size];
+			   }
+
+
+		   }
+
+	   domain a;
+	   domain b;
+	   int size;
+   };
+
+   void convert()
+   {
+
+	   thrust::counting_iterator<vertex> first(0);
+	   thrust::counting_iterator<vertex> last = first + number_of_edges;
+	   /*
+	   * First combine and sort data from and to array - this will be our new edge_list acording to their indexes
+	   */
+	   
+	   thrust::device_vector<vertex> temp_indx(2 * L_VALUE* number_of_edges);
+	   thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
+
+	   full_edge_array = temp_indx;
+
+	   thrust::device_vector<vertex> index_from(number_of_edges);
+	   thrust::device_vector<vertex> index_to(number_of_edges);
+
+	   thrust::sequence(index_from.begin(), index_from.end(), 0);
+	   thrust::sequence(index_to.begin(), index_to.end(), number_of_edges);
+
+	   cout << "Full edge array  ";
+	   for (auto iter : full_edge_array)
+	   {
+		   cout << "  " << iter;
+	   }
+	   cout << endl;
+
+	   thrust::merge_by_key(from_array.begin(), from_array.end(),
+		   to_array.begin(), to_array.end(),
+		   index_from.begin(), index_to.begin(),
+		   temp_indx.begin(),
+		   full_edge_array.begin()
+		   );
+
+	   thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
+	   
+	   thrust::device_vector<vertex> temp1(2 * number_of_edges);
+	   thrust::fill(temp1.begin(), temp1.end(), 1);
+
+	   thrust::device_vector<vertex> temp_arr(number_of_vertex);
+
+	   thrust::reduce_by_key(temp_indx.begin(), temp_indx.end(), temp1.begin(), temp_indx.begin(), temp_arr.begin());
+	   full_vertex_array.reserve(L_VALUE * number_of_vertex);
+	   full_vertex_array = temp_arr;
+
+	   cout << "Temp indx  ";
+	   for (auto iter : temp_indx)
+	   {
+		   cout << "  " << iter;
+	   }
+	   cout << endl;
+
+	   cout << "Temp 1   ";
+	   for (auto iter : temp1)
+	   {
+		   cout << "  " << iter;
+	   }
+	   cout << endl;
+
+
+	   /*
+	   *	Transform the edge list array according to they
+	   */
+	   domain a = thrust::raw_pointer_cast(from_array.data());
+	   domain b = thrust::raw_pointer_cast(to_array.data());
+
+	   thrust::transform(full_edge_array.begin(), full_edge_array.end(), full_edge_array.begin(), converter(a, b, number_of_edges));
+
+   }
+
+
 	void test_func()
 	{
-	 cout << number_of_vertex << endl;
-	 full_vertex_array.reserve(L_VALUE * number_of_vertex);
+	
 
-		 // thrust::merge(from_array.begin(), from_array.end(), to_array.begin(), to_array.end(), )
-	   //  from_array.insert(from_array.end(), to_array.begin(), to_array.end());
+	 convert();
 
-	 thrust::host_vector<vertex> temp_array(number_of_vertex);
-	 thrust::sequence(temp_array.begin(), temp_array.end(), 1);
-	 print_coo_graph();
-	 //Here working with host array
-	 thrust::device_vector<vertex> temp_from_to_array(number_of_edges + number_of_edges);
-	 thrust::copy(from_array.begin(), from_array.end(), temp_from_to_array.begin());
-	 thrust::copy(to_array.begin(), to_array.end(), temp_from_to_array.begin()+number_of_edges);
-
-	// from_array.insert(from_array.end(), to_array.begin(), to_array.end());
-	 thrust::transform(temp_array.begin(), temp_array.end(), temp_array.begin(),
-	   //  counter(from_array.begin(), to_array.end()));
-	   counter(temp_from_to_array.begin(), temp_from_to_array.end()));
-	 
-	//  counter2());
-   //  print_csr();
-	 cout << "Not Temp  ";
-	 for (auto iter : temp_array)
-	 {
-		 cout << "  " << iter;
-	 }
-	 cout << endl;
-
-	 full_vertex_array = temp_array;
-	 temp_array.clear();
-	 temp_from_to_array.clear();
-	 thrust::inclusive_scan(full_vertex_array.begin(), full_vertex_array.end(), full_vertex_array.begin());
-	 
-	 
 	 cout << "Full vertex  ";
 	 for (auto iter : full_vertex_array)
 	 {
@@ -550,28 +616,17 @@ using namespace std;
 	 }
 	 cout << endl;
 
-	// thrust::reduce_by_key(from_array.begin(), from_array.end(), to_array.begin(), temp_array.begin(), temp_from_to_array.begin(), thrust::<vertex>());
 
-	 cout << "Keys vertex  ";
-	 for (auto iter : temp_array)
-	 {
-		 cout << "  " << iter;
-	 }
-	 cout << endl;
-	 
-	 cout << "Values vertex  ";
-	 for (auto iter : temp_from_to_array)
+	 cout << "Full edge  ";
+	 for (auto iter : full_edge_array)
 	 {
 		 cout << "  " << iter;
 	 }
 	 cout << endl;
 
-
-	 //  int i = thrust::count(from_array.begin(), to_array.end(), 2);
-	// printf("i degree %d ", i);
 	}
 
-	
+
 
 	struct assign_functor
 	{
@@ -582,25 +637,14 @@ using namespace std;
 				thrust::get<1>(t) = (float)thrust::get<0>(t);
 			}
 	};
-
-	void convert()
+	void print_test()
 	{
-		
-		thrust::counting_iterator<vertex> first(0);
-		thrust::counting_iterator<vertex> last = first + number_of_edges;
+		print_coo_graph();
+		cout << from_array[2];
 
-		thrust::for_each(
-			thrust::make_zip_iterator(
-			thrust::make_tuple(first, from_array.begin())
-			),
-			thrust::make_zip_iterator(
-			thrust::make_tuple(last, from_array.end())
-			),
-			assign_functor()
-			);
+	}
 
 	
-	}
 
 
 	void calc_degree()

@@ -49,15 +49,14 @@ __global__ void b_iter(domain a, domain b, domain c, int k)
 
 __global__ void k_iter(domain a, domain b, domain c, int size)
 {
-	int index = blockIdx.x *blockDim.x +
-		threadIdx.x;
+	
 //	a_iter<<<1, size>>>(a, b, c, index);
 //	b_iter<<<1, size>>>(a, b, c, index);
 }
 /*
 void combine_edges()
 {
-	
+
 	domain a = thrust::raw_pointer_cast(from_array.data());
 	domain b = thrust::raw_pointer_cast(to_array.data());
 	full_edge_array.reserve(L_VALUE * 2 * number_of_edges);
@@ -157,7 +156,7 @@ __shared__ domain  a;
 int main()
 {
 	init_test_graph();
-
-
+	print_test();
+	test_func();
 	return 0;
 }
