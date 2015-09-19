@@ -56,6 +56,11 @@
 
 using namespace std;
 
+
+
+class Graph
+{
+
 #define vertex  unsigned int
 #define edge  unsigned int
 
@@ -65,60 +70,61 @@ using namespace std;
 
 	int L_VALUE = 1;
 
-  // CSR graph format
-  thrust::device_vector<vertex> vertex_array;
-  thrust::device_vector<edge> edge_array;
-  // CSR with levels graph format
-  // Distance matrix in a nuttshell
-  thrust::device_vector<vertex> full_vertex_array;
-  thrust::device_vector<edge> full_edge_array;
+	// CSR graph format
+	thrust::device_vector<vertex> vertex_array;
+	thrust::device_vector<edge> edge_array;
+	// CSR with levels graph format
+	// Distance matrix in a nuttshell
+	thrust::device_vector<vertex> full_vertex_array;
+	thrust::device_vector<edge> full_edge_array;
 
-  // COO graph format (coordinate list)
-  thrust::device_vector<vertex> from_array;
-  thrust::device_vector<vertex> to_array;
-  // Distance oracle
+	// COO graph format (coordinate list)
+	thrust::device_vector<vertex> from_array;
+	thrust::device_vector<vertex> to_array;
+	// Distance oracle
 
-  // Additional arrays
-  thrust::device_vector<int> vertex_degrees;
+	// Additional arrays
+	thrust::device_vector<int> vertex_degrees;
 
-  // Storing shortest path in COO format matrix
-  thrust::device_vector<vertex> from_array_SP;
-  thrust::device_vector<vertex> to_array_SP;
+	// Storing shortest path in COO format matrix
+	thrust::device_vector<vertex> from_array_SP;
+	thrust::device_vector<vertex> to_array_SP;
 
-  unsigned int number_of_vertex;
-  unsigned int number_of_edges;
+	public:
+	unsigned int number_of_vertex;
+	unsigned int number_of_edges;
 
 	/** ** ** **
 	*		Read graph in Edge list format (COO)
 	*		input:
 	*					string file_name
 	*/
-  void read_COO_format(string file_name)
-  {
-	ifstream myfile;
-	myfile.open(file_name);
-	myfile >> number_of_vertex >> number_of_edges;
-	printf("%d %d \n", number_of_vertex, number_of_edges);
-	// reserve maximum value needed
-	from_array.reserve(number_of_edges);
-	to_array.reserve(number_of_vertex);
-	// Read a pair of vertex - vertex forming an edge
-	int a, b;
-	while (myfile >> a >> b)
+	void read_COO_format(string file_name)
 	{
-		from_array.push_back(a);
-		to_array.push_back(b);
+		ifstream myfile;
+		myfile.open(file_name);
+		myfile >> number_of_vertex >> number_of_edges;
+		printf("%d %d \n", number_of_vertex, number_of_edges);
+		// reserve maximum value needed
+		from_array.reserve(number_of_edges);
+		to_array.reserve(number_of_vertex);
+		// Read a pair of vertex - vertex forming an edge
+		int a, b;
+		while (myfile >> a >> b)
+		{
+			from_array.push_back(a);
+			to_array.push_back(b);
+		}
+		// Reading from file
+		myfile.close();
 	}
-	// Reading from file
-	myfile.close();
-  }
 
 	/**
-	*	Print graph CSR format
-	*	INLINE Grpah function
+	*	Print full graph CSR format
+	*	
 	*/
-  void print_csr()
-  {
+	void print_csr_graph()
+	{
 		cout << "Vertex offset: ";
 		for (auto iter : full_vertex_array)
 		{
@@ -126,46 +132,46 @@ using namespace std;
 		}
 		cout << endl;
 
-	  cout << "Connected Edges ";
-	  for (auto iter : full_edge_array)
-	  {
-		  cout << "  " << iter;
-	  }
-	  cout << endl;
-  }
+		cout << "Connected Edges ";
+		for (auto iter : full_edge_array)
+		{
+			cout << "  " << iter;
+		}
+		cout << endl;
+	}
 
- /**
- *	Print graph in (one layer, initial state) COO format (edge list)
- *
- */
-  void print_coo_graph()
-  {
- 	 cout << "From ";
- 	 for (auto iter : from_array)
- 	 {
- 		 cout <<"  " << iter;
- 	 }
- 	 cout << endl;
- 	 cout << "To   ";
- 	 for (auto iter : to_array)
- 	 {
- 		 cout << "  "<< iter;
- 	 }
- 	 cout << endl;
+	/**
+	*	Print graph in (one layer, initial state) COO format (edge list)
+	*
+	*/
+	void print_coo_graph()
+	{
+		cout << "From ";
+		for (auto iter : from_array)
+		{
+			cout << "  " << iter;
+		}
+		cout << endl;
+		cout << "To   ";
+		for (auto iter : to_array)
+		{
+			cout << "  " << iter;
+		}
+		cout << endl;
 
 
-  }
+	}
 
-/**
-* 	Reading test graph presented in the paper "L-opacity"
-*/
-  void init_test_graph()
-  {
-      // COO format
-	  read_COO_format("graph.txt");
+	/**
+	* 	Reading test graph presented in the paper "L-opacity"
+	*/
+	void init_test_graph()
+	{
+		// COO format
+		read_COO_format("graph.txt");
 
-  }
-// ----------------------------------------------------------------
+	}
+	// ----------------------------------------------------------------
 	/**
 	*	 Converter functor,
 	*	 INPUT:
@@ -176,7 +182,7 @@ using namespace std;
 	struct coo_to_csr_converter
 	{
 		__host__ __device__
-		converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
+		coo_to_csr_converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
 
 		__host__ __device__
 			field operator()(field x)
@@ -198,111 +204,69 @@ using namespace std;
 		int size;
 	};
 
+		
 
-   void convert()
-   {
-
-	   thrust::counting_iterator<vertex> first(0);
-	   thrust::counting_iterator<vertex> last = first + number_of_edges;
-	   /*
-	   * First combine and sort data from and to array - this will be our new edge_list acording to their indexes
-	   */
-
-	   thrust::device_vector<vertex> temp_indx(2 * L_VALUE* number_of_edges);
-	   thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
-
-	   full_edge_array = temp_indx;
-
-	   thrust::device_vector<vertex> index_from(number_of_edges);
-	   thrust::device_vector<vertex> index_to(number_of_edges);
-
-	   thrust::sequence(index_from.begin(), index_from.end(), 0);
-	   thrust::sequence(index_to.begin(), index_to.end(), number_of_edges);
-
-	   cout << "Full edge array  ";
-	   for (auto iter : full_edge_array)
-	   {
-		   cout << "  " << iter;
-	   }
-	   cout << endl;
-
-	   thrust::merge_by_key(from_array.begin(), from_array.end(),
-		   to_array.begin(), to_array.end(),
-		   index_from.begin(), index_to.begin(),
-		   temp_indx.begin(),
-		   full_edge_array.begin()
-		   );
-
-	   thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
-
-	   thrust::device_vector<vertex> temp1(2 * number_of_edges);
-	   thrust::fill(temp1.begin(), temp1.end(), 1);
-
-	   thrust::device_vector<vertex> temp_arr(number_of_vertex);
-
-	   thrust::reduce_by_key(temp_indx.begin(), temp_indx.end(), temp1.begin(), temp_indx.begin(), temp_arr.begin());
-	   full_vertex_array.reserve(L_VALUE * number_of_vertex);
-	   full_vertex_array = temp_arr;
-
-	   cout << "Temp indx  ";
-	   for (auto iter : temp_indx)
-	   {
-		   cout << "  " << iter;
-	   }
-	   cout << endl;
-
-	   cout << "Temp 1   ";
-	   for (auto iter : temp1)
-	   {
-		   cout << "  " << iter;
-	   }
-	   cout << endl;
-
-
-	   /*
-	   *	Transform the edge list array according to they
-	   */
-	   domain a = thrust::raw_pointer_cast(from_array.data());
-	   domain b = thrust::raw_pointer_cast(to_array.data());
-
-	   thrust::transform(full_edge_array.begin(), full_edge_array.end(), full_edge_array.begin(), converter(a, b, number_of_edges));
-
-   }
-
-
-	void test_func()
+	
+	/***
+	*  Converting from COO (edge list) format to CSR (adjaceny list) format
+	*  Run it after someting is in COO list (from and to).
+	*/
+	void convert_to_CSR()
 	{
+		/*
+		* First combine and sort data from and to array - this will be our new edge_list acording to their indexes
+		*/
+
+		full_edge_array.reserve(2 * L_VALUE * number_of_edges);
+		full_vertex_array.reserve(L_VALUE*number_of_vertex);
+
+		thrust::device_vector<vertex> temp_indx(2 * number_of_edges);
+		thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
+		full_edge_array = temp_indx;
+
+		thrust::counting_iterator<vertex> index_from(0);
+		thrust::counting_iterator<vertex> index_to(number_of_edges);
 
 
-	 convert();
+		thrust::merge_by_key(from_array.begin(), from_array.end(),
+			to_array.begin(), to_array.end(),
+			index_from, index_to,
+			temp_indx.begin(),
+			full_edge_array.begin()
+			);
 
-	 cout << "Full vertex  ";
-	 for (auto iter : full_vertex_array)
-	 {
-		 cout << "  " << iter;
-	 }
-	 cout << endl;
+		thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
+		// Clean temporal array
+	
+	
+		/*
+		*	Form vertex offset list
+		*/
+		thrust::device_vector<vertex> temp_arr(number_of_vertex);
+
+		thrust::reduce_by_key(temp_indx.begin(), temp_indx.end(),
+			thrust::make_constant_iterator(1), temp_indx.begin(), temp_arr.begin());
+		full_vertex_array = temp_arr;
 
 
-	 cout << "Full edge  ";
-	 for (auto iter : full_edge_array)
-	 {
-		 cout << "  " << iter;
-	 }
-	 cout << endl;
+		// Clean temporal arrays
+		temp_arr.clear();
+		temp_arr.shrink_to_fit();
+		temp_indx.clear();
+		temp_indx.shrink_to_fit();
+
+		/*
+		*	Transform the edge list array according to they paired edge.
+		*	Form edge list combined by vertexes
+		*/
+		domain a = thrust::raw_pointer_cast(from_array.data());
+		domain b = thrust::raw_pointer_cast(to_array.data());
+
+		thrust::transform(full_edge_array.begin(), full_edge_array.end(), full_edge_array.begin(),
+			coo_to_csr_converter(a, b, number_of_edges));
+		
+
 
 	}
-
-	/***
-  *  Converting from COO (edge list) format to CSR (adjaceny list) format
-  *  ! Run it after someting is in COO list (from and to)
-  */
-  void convert_to_CSR()
-  {
-
-	  full_vertex_array.reserve(2*L_VALUE * number_of_edges);
-	  full_edge_array.reserve(2 * L_VALUE * number_of_vertex);
-
-
-  }
+};
 #endif

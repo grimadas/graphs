@@ -10,8 +10,11 @@
 
 int main()
 {
-	init_test_graph();
-	print_test();
-	test_func();
+	Graph graph;
+	graph.init_test_graph(); // Reading graph from the file in COO format
+	graph.print_coo_graph();
+	graph.convert_to_CSR();
+	graph.print_csr_graph();
+	
 	return 0;
 }
