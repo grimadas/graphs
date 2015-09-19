@@ -1,11 +1,14 @@
 /*
-*  CUDA graph representation
-*  author: Bulat
-*  graph.h
+
 */
 
 
 /************************************************
+* 													 										*
+*  CUDA graph representation										*
+*  author: Bulat 																*
+*  graph.h 																			*
+*************************************************
 *		la - look ahed parametr
 *		L - opacity threshold (1, 2) - small value
 *		num_vertex - number of vetexes in a graph
@@ -84,35 +87,12 @@ using namespace std;
 
   unsigned int number_of_vertex;
   unsigned int number_of_edges;
-  // __device__ int d1;
-  bool directed = false;
 
-
-
-  double get_density()
-  {
-      // For directed
-      return directed? (double)number_of_edges/ (number_of_vertex * (number_of_vertex - 1)) :  (double)2 * number_of_edges/ (number_of_vertex * (number_of_vertex - 1));
-  }
-
-
-  /*
-  struct test_functor
-  {
-	  const int a;
-
-	  test_functor(int _a) : a(_a) {}
-
-	  __device__
-		  int operator()(int& x, int& y) {
-			  int temp = 0;
-			  for (int i = 0; i<a; i++)
-				  temp += vals[i + (y*a)] * keys[i];
-			  return temp;
-		  }
-  };
-  */
-
+	/** ** ** **
+	*		Read graph in Edge list format (COO)
+	*		input:
+	*					string file_name
+	*/
   void read_COO_format(string file_name)
   {
 	ifstream myfile;
@@ -133,9 +113,20 @@ using namespace std;
 	myfile.close();
   }
 
+	/**
+	*	Print graph CSR format
+	*	INLINE Grpah function
+	*/
   void print_csr()
   {
-	  cout << "Full edge ";
+		cout << "Vertex offset: ";
+		for (auto iter : full_vertex_array)
+		{
+			cout << "  " << iter;
+		}
+		cout << endl;
+
+	  cout << "Connected Edges ";
 	  for (auto iter : full_edge_array)
 	  {
 		  cout << "  " << iter;
@@ -143,6 +134,10 @@ using namespace std;
 	  cout << endl;
   }
 
+ /**
+ *	Print graph in (one layer, initial state) COO format (edge list)
+ *
+ */
   void print_coo_graph()
   {
  	 cout << "From ";
@@ -161,376 +156,48 @@ using namespace std;
 
   }
 
-  	int get_first_free(int* array, int size)
-  	{
-  		for (int i = 0; i < size; i++)
-  	   {    if (array[i] < 0)
-  		   return i;
-  	   }
-  	   return size;
-
-  	}
-
-
-  /**
-  * Generating random graph in COO format
-  *
-  */
-  void random_coo_graph(int vertex_num, int max_num_per_vertex)
-  {
-
-
-	  directed = false;
-
-	  //number_of_edges = edge_num;
-	  number_of_vertex = vertex_num;
-	  from_array.reserve(max_num_per_vertex*number_of_vertex);
-	  to_array.reserve(max_num_per_vertex*number_of_vertex);
-
-
-	  // Random seed
-	  srand(time(NULL));
-
-	  for (int current_vertex = 0; current_vertex < vertex_num-2; current_vertex++)
-	  {
-		  // Generating data for all the vertex
-
-		  int number_of_edges = rand() % max_num_per_vertex;
-		  for (int j = 0; j < number_of_edges; j++)
-		  {
-			  int rand_vertex = current_vertex+1 + rand() % (vertex_num-current_vertex);
-
-			  if (rand_vertex < vertex_num)
-			  //  if (thrust::find(to_array.begin(), to_array.end(), rand_vertex) != to_array.end())
-			  {
-				  from_array.push_back(current_vertex);
-				  to_array.push_back(rand_vertex);
-			  }
-
-		  }
-	  }
-
-
-  }
-
-  /**
-  * Generating random graph in COO format
-  * EXPEREMETNAL
-  */
-  void random_coo_graph_expr(int vertex_num, int max_num_per_vertex)
-  {
-
-
-
-	  directed = false;
-
-	  //number_of_edges = edge_num;
-	  number_of_vertex = vertex_num;
-//	  from_to_array.reserve(2*max_num_per_vertex*number_of_vertex);
-
-
-	  // Random seed
-	  srand(time(NULL));
-
-	  for (int current_vertex = 0; current_vertex < vertex_num - 2; current_vertex++)
-	  {
-		  // Generating data for all the vertex
-
-		  int number_of_edges = rand() % max_num_per_vertex;
-		  for (int j = 0; j < number_of_edges; j++)
-		  {
-			  int rand_vertex = current_vertex + 1 + rand() % (vertex_num - current_vertex);
-
-			  if (rand_vertex < vertex_num)
-				  //  if (thrust::find(to_array.begin(), to_array.end(), rand_vertex) != to_array.end())
-			  {
-			//	  cout << current_vertex << " ok" << endl;
-	//			  from_to_array[current_vertex + j] = current_vertex;
-		//		  from_to_array[2 * current_vertex + j] = rand_vertex;
-			//	  cout << current_vertex << " still ok" << endl;
-			  }
-
-		  }
-
-
-
-	  }
-
-
-  }
-  /*
-  *  Print graph coo format
-  *  Print is on  HOST
-  */
-
-
-
+/**
+* 	Reading test graph presented in the paper "L-opacity"
+*/
   void init_test_graph()
   {
       // COO format
 	  read_COO_format("graph.txt");
 
-      // CSR format
-//	  read_CSR_graph("graph.txt");
-
   }
-  /***
-  *  Converting from COO (edge list) format to CSR (adjaceny list) format
-  *  ! Run it after someting is in COO list (from and to)
-  */
-  void convert_to_CSR()
-  {
+// ----------------------------------------------------------------
+	/**
+	*	 Converter functor,
+	*	 INPUT:
+	*				_a - from_array
+	*				_b - to_array
+	*				_size - number_of_edges
+	*/
+	struct coo_to_csr_converter
+	{
+		__host__ __device__
+		converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
 
-	  full_vertex_array.reserve(2*L_VALUE * number_of_edges);
-	  full_edge_array.reserve(2 * L_VALUE * number_of_vertex);
-
-//	  thrust::count(from_array.begin(), to_array.end(), 1);
-	  //thrust::
-  }
-
-  void exp_tet()
-  {
-
-  }
-
-
-
-
-  /*
-  *	Reading function
-  * Input: FileName
-  */
-  /*
-  void read_CSR_graph(string file_name)
-  {
-	  ifstream myfile;
-	  int vertex_num, edge_num;
-	  myfile.open(file_name);
-	  myfile >> vertex_num >> edge_num;
-	  // reserve maximum value needed
-	  vertex_array_exp.reserve(vertex_num*(L_VALUE + 1));
-	  edge_array_exp.reserve(vertex_num*vertex_num); // TODO more efficient space wasting assumption
-	  // Read a pait of vertex - vertex forming an edge
-	  int a, b;
-	  while (myfile >> a >> b)
-	  {
-		  // Increment offset
-		  vertex_array_exp.push_back(a);
-		  // add new connection to edge array
-		  edge_array_exp.push_back(b);
-	  }
-	  // Reading from file
-	  myfile.close();
-
-  }
-  */
-  /**
-  *
-  */
-  void random_sparse_underict_graph(int vertex_num)
-  {
-     int max_num = 5;
-     int offset = 0;
-
-     directed = false;
-
-    //number_of_edges = edge_num;
-    number_of_vertex = vertex_num;
-    // Generae temporal array to store edges
-     int** temp_array = new int*[number_of_vertex];
-      for (int i = 0; i < number_of_vertex; ++i) {
-          temp_array[i] = new int[max_num];
-          for (int j = 0; j< max_num; j++)
-          {
-              temp_array[i][j] = -1;
-          }
-      }
-   // Random seed
-    srand(time(NULL));
+		__host__ __device__
+			field operator()(field x)
+		{
+				if (x < size)
+				{
+					return b[x];
+				}
+				else
+				{
+					return a[x - size];
+				}
 
 
-    vertex_array.reserve(number_of_vertex);
-    // Main loop for generating
-    for (int vertex_indx =0; vertex_indx < number_of_vertex; vertex_indx++ )
-    {
-          // Generate random number of edges
-          int rand_num = rand()% max_num;
-          // add the offset and number of edges to vector
-          vertex_array.push_back(offset + rand_num);
+			}
 
+		domain a;
+		domain b;
+		int size;
+	};
 
-          offset += rand_num;
-          // strating index is not always zero
-          int edges_generated = get_first_free(temp_array[vertex_indx], max_num);
-          if (edges_generated > rand_num && edges_generated < max_num)
-          {
-              vertex_array[vertex_indx] += edges_generated-rand_num;
-              offset += edges_generated-rand_num;
-          }
-          while (edges_generated < rand_num)
-
-          {
-              int rand_vertex = rand() % vertex_num;
-              if (rand_vertex != vertex_indx) // no cycles allowed
-               {
-                   int index_to_put = get_first_free(temp_array[rand_vertex], max_num);
-                   cout << "Index to put " << index_to_put << endl;
-                   if (index_to_put < max_num) // there should be place to put
-                   {
-                       temp_array[vertex_indx][edges_generated] = rand_vertex;
-                       temp_array[rand_vertex][index_to_put] = vertex_indx;
-                       edges_generated++;
-                   }
-
-               }
-
-          }
-
-
-    }
-    number_of_edges = vertex_array[number_of_vertex - 1];
-
-
-      for (int i = 0; i < number_of_vertex; ++i) {
-
-          for (int j = 0; j < max_num; j++) {
-              cout << " " <<temp_array[i][j];
-          }
-          cout << endl;
-      }
-
-    edge_array.reserve(number_of_edges);
-
-
-    for (int vertexs = 0; vertexs < number_of_vertex; vertexs++)
-    {
-        int i = 0;
-        while (temp_array[vertexs][i] >= 0)
-        {
-            edge_array.push_back(temp_array[vertexs][i]);
-            i++;
-        }
-    }
-
-    //cout << "Vector check " << edge_array[0] << " \n";
-
-
-
-  }
-
-  /*
-  *  Print graph Vertex and Edges
-  */
-  void print_graph()
-  {
-    cout << "Vertex ";
-    for(auto iter: vertex_array)
-    {
-      cout << iter << " ";
-    }
-    cout << endl;
-    cout << "Edges ";
-    for(auto iter: edge_array)
-    {
-      cout << iter << " ";
-    }
-    cout << endl;
-
-  }
-
-  /**
-  *     Print graph in list maneer
-  */
-  void print_graph_in_list()
-  {
-        cout << "Graph:  " << endl;
-        int starting_index = 0;
-
-
-
-        for (int i = 0; i < number_of_vertex; i++)
-        {
-
-            cout << "  " << i << " : ";
-            ///for (int edge = starting_index; edge < (int)vertex_array[i]; edge++)
-            int count = (int)vertex_array[i];
-            for (int j = starting_index; j <= count; j++) {
-
-                cout << "-> " << edge_array[j];
-            }
-            starting_index = vertex_array[i]+1;
-            cout << endl;
-
-        }
-  }
-
-
-    struct counter2
-    {
-  	  __host__
-  	  vertex operator()(vertex x)
-  	  {
-
-		//  return  thrust::count( from_array.begin(), from_array.end(), x);
-		  return thrust::count(from_array.begin(), to_array.end(), x);
-  	  }
-    };
-
-
-
-   struct counter
-    {
-
-  	 //counter(thrust::device_ptr<vertex> first_begin, thrust::device_ptr<vertex> first_end) : f_b(first_begin), f_e(first_end) {}
-  	 __host__ __device__
-  	 counter(thrust::device_vector<vertex>::iterator a, thrust::device_vector<vertex>::iterator b) : f_b(a), f_e(b) {}
-  	// counter(vertex a) : f_b(a) {}
-  	 __host__
-  	  vertex operator()(vertex x)
-  	  {
-  		  int i =
-  		  thrust::count(f_b, f_e, x);
-
-  		  return  i;
-
-  	//	thrust::device_vector<vertex> as(v1, v1+3);
-
-
-
-  	  }
-  	 // thrust::device_ptr<vertex> f_b;
-  	 // thrust::device_ptr<vertex> f_e;
-
-  	  thrust::device_vector<vertex>::iterator f_b;
-  	  thrust::device_vector<vertex>::iterator f_e;
-  	 // vertex f_b;
-
-    };
-
-   struct converter
-   {
-	   __host__ __device__
-	   converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
-
-	   __host__ __device__
-		   field operator()(field x)
-	   {
-			   if (x < size)
-			   {
-				   return b[x];
-			   }
-			   else
-			   {
-				   return a[x - size];
-			   }
-
-
-		   }
-
-	   domain a;
-	   domain b;
-	   int size;
-   };
 
    void convert()
    {
@@ -540,7 +207,7 @@ using namespace std;
 	   /*
 	   * First combine and sort data from and to array - this will be our new edge_list acording to their indexes
 	   */
-	   
+
 	   thrust::device_vector<vertex> temp_indx(2 * L_VALUE* number_of_edges);
 	   thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
 
@@ -567,7 +234,7 @@ using namespace std;
 		   );
 
 	   thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
-	   
+
 	   thrust::device_vector<vertex> temp1(2 * number_of_edges);
 	   thrust::fill(temp1.begin(), temp1.end(), 1);
 
@@ -605,7 +272,7 @@ using namespace std;
 
 	void test_func()
 	{
-	
+
 
 	 convert();
 
@@ -626,6 +293,21 @@ using namespace std;
 
 	}
 
+	/***
+  *  Converting from COO (edge list) format to CSR (adjaceny list) format
+  *  ! Run it after someting is in COO list (from and to)
+  */
+  void convert_to_CSR()
+  {
+
+	  full_vertex_array.reserve(2*L_VALUE * number_of_edges);
+	  full_edge_array.reserve(2 * L_VALUE * number_of_vertex);
+
+
+
+
+  }
+
 
 
 	struct assign_functor
@@ -644,7 +326,7 @@ using namespace std;
 
 	}
 
-	
+
 
 
 	void calc_degree()
