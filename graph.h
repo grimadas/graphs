@@ -65,60 +65,6 @@ using namespace std;
 int a = 0;
 
 
-// This example demonstrates how to expand an input sequence by
-// replicating each element a variable number of times. For example,
-//
-//   expand([2,2,2],[A,B,C]) -> [A,A,B,B,C,C]
-//   expand([3,0,1],[A,B,C]) -> [A,A,A,C]
-//   expand([1,3,2],[A,B,C]) -> [A,B,B,B,C,C]
-//
-// The element counts are assumed to be non-negative integers
-
-template <typename InputIterator1,
-	typename InputIterator2,
-	typename OutputIterator>
-	OutputIterator expand(InputIterator1 first1,
-	InputIterator1 last1,
-	InputIterator2 first2,
-	OutputIterator output)
-{
-		typedef typename thrust::iterator_difference<InputIterator1>::type difference_type;
-
-		difference_type input_size = thrust::distance(first1, last1);
-		difference_type output_size = thrust::reduce(first1, last1);
-
-		// scan the counts to obtain output offsets for each input element
-		thrust::device_vector<difference_type> output_offsets(input_size, 0);
-		thrust::exclusive_scan(first1, last1, output_offsets.begin());
-
-		// scatter the nonzero counts into their corresponding output positions
-		thrust::device_vector<difference_type> output_indices(output_size, 0);
-		thrust::scatter_if
-			(thrust::counting_iterator<difference_type>(0),
-			thrust::counting_iterator<difference_type>(input_size),
-			output_offsets.begin(),
-			first1,
-			output_indices.begin());
-
-		// compute max-scan over the output indices, filling in the holes
-		thrust::inclusive_scan
-			(output_indices.begin(),
-			output_indices.end(),
-			output_indices.begin(),
-			thrust::maximum<difference_type>());
-
-		// gather input values according to index array (output = first2[output_indices])
-		OutputIterator output_end = output; thrust::advance(output_end, output_size);
-		thrust::gather(output_indices.begin(),
-			output_indices.end(),
-			first2,
-			output);
-
-		// return output + output_size
-		thrust::advance(output, output_size);
-		return output;
-	}
-
 
 class Graph
 {
@@ -130,7 +76,7 @@ class Graph
 #define field  vertex
 
 
-	int L_VALUE = 2;
+	int L_VALUE = 3;
 public:
 
 	// CSR with levels graph format
@@ -148,8 +94,11 @@ public:
 	// Distance oracle
 	// ?
 	// Additional arrays
-	thrust::device_vector<int> vertex_degrees;
-
+	thrust::device_vector<field> vertex_degrees;
+	thrust::device_vector<field> degree_count;
+	field max_degree;
+	
+	thrust::device_vector<float> opacity_matrix;
 
 	unsigned int number_of_vertex;
 	unsigned int number_of_edges;
@@ -185,6 +134,20 @@ public:
 	*/
 	void print_csr_graph()
 	{
+		cout << "Vertex degrees ";
+		for (auto iter : vertex_degrees)
+		{
+			cout << "  " << iter;
+		}
+		cout << endl;
+
+		cout << "Degree count ";
+		for (auto iter : degree_count)
+		{
+			cout << "  " << iter;
+		}
+		cout << endl;
+		
 		cout << "Vertex offset: ";
 		for (auto iter : full_vertex_array)
 		{
@@ -273,16 +236,34 @@ public:
 	//	full_vertex_array.reserve(L_VALUE*number_of_vertex);
 
 		thrust::device_vector<vertex> temp_indx(2 * L_VALUE* number_of_edges);
+		// Init edge vector
 		thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
 		full_edge_array = temp_indx;
+		// Init vertex vector
 		temp_indx.resize(L_VALUE*number_of_vertex);
 		temp_indx.shrink_to_fit();
-
 		full_vertex_array = temp_indx;
+		// Init degree vector
+		temp_indx.resize(number_of_vertex);
+		temp_indx.shrink_to_fit();
+		vertex_degrees = temp_indx;
+		degree_count = temp_indx;
+		// Init opacity matrix 
+	//	thrust::device_vector<float> tempr_indx(number_of_vertex*(number_of_vertex - 1) / 2);
+	//	thrust::fill(tempr_indx.begin(), tempr_indx.end(), 0);
+	//	opacity_matrix = tempr_indx;
+
+
 		temp_indx.clear();
 		temp_indx.shrink_to_fit();
+//
+//		tempr_indx.clear();
+//		tempr_indx.shrink_to_fit();
 
 		current_end = 2 * number_of_edges;
+
+
+	
 
 	}
 
@@ -323,6 +304,20 @@ public:
 		thrust::reduce_by_key(temp_indx.begin(), temp_indx.end(),
 			thrust::make_constant_iterator(1), temp_indx.begin(), full_vertex_array.begin());
 
+		/*
+		*	Form degree vector
+		*/
+
+		thrust::copy(full_vertex_array.begin(), full_vertex_array.begin() + number_of_vertex, vertex_degrees.begin());
+
+		thrust::copy(vertex_degrees.begin(), vertex_degrees.end(), degree_count.begin());
+		thrust::sort(degree_count.begin(), degree_count.end());
+		max_degree = degree_count[number_of_vertex - 1];
+
+		thrust::reduce_by_key(degree_count.begin(), degree_count.end(), thrust::make_constant_iterator(1),
+			thrust::make_discard_iterator(), degree_count.begin());
+	
+
 		thrust::inclusive_scan(full_vertex_array.begin(), full_vertex_array.begin()+number_of_vertex, full_vertex_array.begin());
 
 		// Clean temporal arrays
@@ -339,6 +334,9 @@ public:
 
 		thrust::transform(full_edge_array.begin(), full_edge_array.begin() + 2*number_of_edges, full_edge_array.begin(),
 			coo_to_csr_converter(a, b, number_of_edges));
+
+
+
 
 
 
@@ -442,41 +440,28 @@ public:
 	struct pred_if
 	{
 		__host__ __device__
-		pred_if(domain v, domain e, int v_s, int e_s) : vertexes(v), edges(e), v_size(v_s), e_size(e_s)
+		pred_if(domain a, domain b, int vert) : start(a), end(b), current(vert)
 		{
 
 		}
 
-		template <typename Tuple>
 		__host__ __device__
-			bool operator()(Tuple t)
+			bool operator()(vertex x)
 		{
-
-				int start = 0;
-				int end;
-				int index_from = thrust::get<0>(t);
-				if (index_from != 0)
+			//	printf("SEARCHING distance %i \n", thrust::distance(start, end));
+				int from = 0;
+				if (current != 0)
 				{
-					start = vertexes[index_from-1];
+					from = end[current - 1];
 				}
-				end = vertexes[index_from];
+				int to = end[current];
 
-				if (thrust::get<1>(t) == index_from + 1)
-					return false;
-
-				if (thrust::binary_search(edges + start, edges + end, thrust::get<1>(t)))
-					return false;
-
-				return true;
-
-
-
+				return thrust::binary_search(thrust::device, start+from, start+to, x);
 		}
-	 	int L;
-		domain vertexes;
-		domain edges;
-		int v_size;
-		int e_size;
+
+		domain start;
+		domain end;
+		int current;
 	};
 
 
@@ -533,7 +518,19 @@ public:
 
 	};
 
+	struct  printer
+	{
 
+		__host__ __device__
+			void operator()(vertex t)
+		{
+				// Device vector temporal array (candidate)
+
+				printf("%u ", t);
+			}
+
+
+	};
 	/*
 	*	By finding shortest paths, form to L_VALUE level
 	*/
@@ -543,7 +540,7 @@ public:
 		//	domain a = thrust::raw_pointer_cast(full_edge_array.data());
 
 		//	thrust::for_each(thrust::device, full_vertex_array.begin(), full_vertex_array.begin() + number_of_vertex, copier(a, 5));
-		//thrust::make_transform_iterator(full_edge_array.begin(), minus_one())
+		//
 		thrust::device_vector<vertex> temp(number_of_edges * 2);
 
 
@@ -598,9 +595,9 @@ public:
 
 		//domain c = ;
 		vertex N = full_vertex_array[number_of_vertex - 1];
-		thrust::device_vector<vertex> c (N);
+		thrust::device_vector<vertex> c (2*N);
 
-		thrust::device_vector<vertex> tempo(N);
+		thrust::device_vector<vertex> tempo(2*N);
 		thrust::device_vector<vertex>::iterator current = tempo.begin();
 
 		int NUM = thrust::distance(temp.begin(), temp.end());
@@ -619,13 +616,6 @@ public:
 		thrust::device_vector<vertex>::iterator previous = current;
 		for (int i = 0; i < NUM; i++)
 		{
-
-			//thrust::make_transform_iterator(thrust::make_counting_iterator<vertex>(0), fun())
-			current = thrust::copy(thrust::seq,
-				thrust::make_permutation_iterator(full_edge_array.begin(), thrust::make_counting_iterator<vertex>(temp_from[i])),
-				thrust::make_permutation_iterator(full_edge_array.begin(), thrust::make_counting_iterator<vertex>(temp[i])),
-				current);
-
 			if (c[i] != current_index)
 			{
 				// We finish expanding for current index
@@ -635,24 +625,74 @@ public:
 					start = full_vertex_array[current_index - 1];
 				}
 				int end = full_vertex_array[current_index];
-				thrust::device_vector<vertex> temp_vect(number_of_edges);
+				//thrust::device_vector<vertex> temp_vect(number_of_edges);
 
-				thrust::merge(previous, current, full_edge_array.begin() + start, full_edge_array.begin() + end, temp_vect);
+				//thrust::merge(previous, current, full_edge_array.begin() + start, full_edge_array.begin() + end, temp_vect.begin());
 				// Remove a self vertex
-				thrust::remove(temp_vect.begin(), temp_vect.end(), 0);
-				thrust::remove(temp_vect.begin(), temp_vect.end(), current_index+1);
+				//	current = thrust::remove(previous, current, 0);
+
+				current = thrust::remove(previous, current, current_index + 1);
 				// Remove copies
-				current = thrust::unique_copy(temp_vect.begin(), temp_vect.end(), previous);
+
+				domain from = thrust::raw_pointer_cast(&full_edge_array[start]);
+				domain to = thrust::raw_pointer_cast(&full_edge_array[end]);
+
+				cout << "Tempo " << current_index << ": ";
+
+				//		pred_if(from, to));
+
+			//	thrust::device_vector<vertex> temp_vector(number_of_edges);
+			//	temp_vec
+				thrust::sort(previous, current);
+				current = thrust::unique(previous, current);
+				for (auto j = full_edge_array.begin() + start; j != full_edge_array.begin() + end; j++)
+				{
+					current = thrust::remove(previous, current, *j);
+				}
+
+			//	current = thrust::remove_if(thrust::device, previous, current,
+			//		pred_if(thrust::raw_pointer_cast(full_edge_array.data()), thrust::raw_pointer_cast(full_vertex_array.data()), current_index));
+
+				thrust::for_each(previous, current, printer());
+				cout << endl;
+				full_vertex_array[current_index + number_of_vertex] = thrust::distance(previous, current);
 				previous = current;
 				current_index = c[i];
+
 				// Put a value into vertex array
 
 			}
+			//thrust::make_transform_iterator(thrust::make_counting_iterator<vertex>(0), fun())
+			current = thrust::copy(thrust::seq,
+				thrust::make_permutation_iterator(full_edge_array.begin(), thrust::make_counting_iterator<vertex>(temp_from[i])),
+				thrust::make_permutation_iterator(full_edge_array.begin(), thrust::make_counting_iterator<vertex>(temp[i])),
+				current);
+
+			
 
 		}
 
+		int start = full_vertex_array[current_index - 1];
+		int end = full_vertex_array[current_index];
+		// Remove current vertex (avoid loops)
+		current = thrust::remove(previous, current, current_index + 1);
+		
+		cout <<endl << "Tempo " << current_index << ": ";
+		// sort connected edges
+		thrust::sort(previous, current);
+		// remove dublicates 
+		current = thrust::unique(previous, current);
+		// Remove all vertex that are already discovered
+		for (auto j = full_edge_array.begin() + start; j != full_edge_array.begin() + end; j++)
+		{
+			current = thrust::remove(previous, current, *j);
+		}
 
-
+		// Print all edges from current vertex
+		thrust::for_each(previous, current, printer());
+		full_vertex_array[current_index + number_of_vertex] = thrust::distance(previous, current);
+		
+	
 		cout << "Tempo   ";
 		for (auto iter : tempo)
 		{
@@ -660,19 +700,64 @@ public:
 		}
 		cout << endl;
 
-		//thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(temp_from.begin(), temp.begin(), indexs)),)
-
-/*		thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(temp_from.begin(), temp.begin())),
-			thrust::make_zip_iterator(thrust::make_tuple(temp_from.end(), temp.end())),
-			calcus(thrust::raw_pointer_cast(tempo.data()),
-			thrust::raw_pointer_cast(full_vertex_array.data()), number_of_vertex)); */
+		// Update vertex 
+		thrust::inclusive_scan(full_vertex_array.begin() + (number_of_vertex - 1), full_vertex_array.begin() + 2 * (number_of_vertex), full_vertex_array.begin() + (number_of_vertex - 1));
+		// Update edges
+		thrust::copy(tempo.begin(), current, full_edge_array.begin() + full_vertex_array[number_of_vertex-1]);
 
 
-		/**/
+		print_csr_graph();
+		
 
 
 	}
 
 
+	struct minus_one
+	{
+		__host__ __device__
+		vertex operator()(vertex t)
+		{
+			// -1 :
+			return t - 1;
+			
+		}
+	};
+
+	/*
+	*	L opacity matrix calculation
+	*/
+
+	void calc_L_opacity()
+	{
+		for (int i = 1; i <= L_VALUE; i++)
+		{
+			// full_edge_array - here we store all adjasent 
+			
+			vertex N = full_vertex_array[number_of_vertex - 1];
+			thrust::device_vector<vertex> from(N);
+			// Forming indexes (from vertex)
+			thrust::transform(
+				thrust::make_counting_iterator<vertex>(0),
+				thrust::make_counting_iterator<vertex>(2*number_of_edges-1),
+				from.begin(), replacer(thrust::raw_pointer_cast(full_vertex_array.data()), number_of_vertex)
+				);
+			from[0] = full_vertex_array[(number_of_vertex-1)*(i-1)];
+			thrust::inclusive_scan(from.begin(), from.end(), from.begin());
+			thrust::transform(thrust::make_permutation_iterator(vertex_degrees.begin(), from.begin()),
+				thrust::make_permutation_iterator(vertex_degrees.begin(), from.end()),
+				from.begin(), thrust::identity<vertex>());
+
+
+			// (to vertex) - is full_edge_list 
+			thrust::device_vector<vertex> to(N);
+			thrust::copy(
+				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin(), minus_one())),
+				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one())),
+				to.begin());
+
+
+		}
+	}
 };
 #endif
