@@ -737,19 +737,45 @@ public:
 			vertex N = full_vertex_array[number_of_vertex - 1];
 			thrust::device_vector<vertex> from(N);
 			// Forming indexes (from vertex)
+			int starting_point = 0;
+			int ending_point = full_vertex_array[(i-1)*number_of_vertex-1];
+
+			if (i != 1)
+		
+			{
+				starting_point = full_vertex_array[(i - 1)*number_of_vertex - 1];
+
+			}
+			/*
+			*	Expanding indexes. Finding break points
+			*	Example: 0 1 2 3 4 .. 20 => 0 0 1 0 0 0 1 ...
+			*/
 			thrust::transform(
-				thrust::make_counting_iterator<vertex>(0),
-				thrust::make_counting_iterator<vertex>(2*number_of_edges-1),
+				thrust::make_counting_iterator<vertex>(starting_point),
+				thrust::make_counting_iterator<vertex>(ending_point),
 				from.begin(), replacer(thrust::raw_pointer_cast(full_vertex_array.data()), number_of_vertex)
 				);
-			from[0] = full_vertex_array[(number_of_vertex-1)*(i-1)];
+		//	from[0] = full_vertex_array[(number_of_vertex-1)*(i-1)];
+			/*
+			*	Transorming into indexes: 
+			*	Example:	0 0 1 0 0 0 1 => 0 0 1 1 1 1 2 2 2 ..
+			*/
+
 			thrust::inclusive_scan(from.begin(), from.end(), from.begin());
+
+			/* 
+			*	Transforming from indexes into degrees:
+			*	Example:  0 0 1 1 1 1 2 2 2.. => 2 2 4 4 4 4 ...
+			*/
+
 			thrust::transform(thrust::make_permutation_iterator(vertex_degrees.begin(), from.begin()),
 				thrust::make_permutation_iterator(vertex_degrees.begin(), from.end()),
 				from.begin(), thrust::identity<vertex>());
 
-
-			// (to vertex) - is full_edge_list 
+			/*
+			*	To vector. Transform edge list into degree list =>  
+			*
+			*/
 			thrust::device_vector<vertex> to(N);
 			thrust::copy(
 				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin(), minus_one())),
