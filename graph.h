@@ -269,7 +269,7 @@ public:
 
 	/***
 	*  Converting from COO (edge list) format to CSR (adjaceny list) format
-	*  Run it after someting is in COO list (from and to).
+	*  Run it after something is in COO list (from and to).
 	*/
 	void convert_to_CSR()
 	{
@@ -344,13 +344,13 @@ public:
 
 
 	/***
-	*  Converting from COO (edge list) format to CSR (adjaceny list) format
+	*  Converting from COO (edge list) format to CSR (adjacency list) format
 	*  Run it after someting is in COO list (from and to).
 	*/
 	void convert_to_CSR_no_doubles()
 	{
 		/*
-		* First combine and sort data from and to array - this will be our new edge_list acording to their indexes
+		* First combine and sort data from and to array - this will be our new edge_list according to their indexes
 		*/
 		init_arrays();
 		thrust::device_vector<vertex> temp_indx(2 * number_of_edges);
@@ -773,7 +773,7 @@ public:
 				from.begin(), thrust::identity<vertex>());
 
 			/*
-			*	To vector. Transform edge list into degree list =>  
+			*	To vector. Transform edge list into degree list =>  similar techno
 			*
 			*/
 			thrust::device_vector<vertex> to(N);
@@ -781,7 +781,34 @@ public:
 				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin(), minus_one())),
 				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one())),
 				to.begin());
+			/*
+			 *  Find max and min in zip iterator of to - from pairs
+			 */
+			//	thrust::transform(
+			//			thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin()))
+			//
+			//	)
 
+			/*
+			 * 	Opacity  matrix forming. TODO: IN PARALLEL using cuda kernel
+			 */
+
+
+			for (int i =0; i < N; i++)
+			{
+				opacity_matrix[number_of_vertex*from[i] + to[i]]++;
+			}
+			/*
+			 * 	Merge by key via indexes from and to. from: 1: N. to - N: 2N
+			 */
+
+			/*
+			 * Sort by key. Indexes (values) and degrees (keys)
+			 */
+
+			/*
+			 * 	Reduce by key. Count how many pairs we have. 0 0 3 3
+			 */
 
 		}
 	}
