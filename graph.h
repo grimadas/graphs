@@ -75,8 +75,10 @@ class Graph
 #define domain vertex*
 #define field  vertex
 
+#define opacity double
 
-	int L_VALUE = 3;
+
+	int L_VALUE = 2;
 public:
 
 	// CSR with levels graph format
@@ -98,7 +100,7 @@ public:
 	thrust::device_vector<field> degree_count;
 	field max_degree;
 	
-	thrust::device_vector<float> opacity_matrix;
+	thrust::device_vector<opacity> opacity_matrix;
 
 	unsigned int number_of_vertex;
 	unsigned int number_of_edges;
@@ -162,6 +164,23 @@ public:
 		}
 		cout << endl;
 	}
+
+	/**
+	*	Print opacity matrix 
+	*/
+	void print_opacity_matrix()
+	{
+		cout<< endl  << "Opacity : " << endl;
+		for (auto i = 0; i < max_degree; i++)
+		{
+			for (auto j = 0; j < max_degree; j++)
+				cout <<" " << opacity_matrix[max_degree*i + j];
+				//	printf(" %f",  opacity_matrix[max_degree*i + j]);
+			cout << endl;
+		}
+		cout << endl;
+	}
+
 
 	/**
 	*	Print graph in (one layer, initial state) COO format (edge list)
@@ -248,10 +267,11 @@ public:
 		temp_indx.shrink_to_fit();
 		vertex_degrees = temp_indx;
 		degree_count = temp_indx;
+		
 		// Init opacity matrix 
-	//	thrust::device_vector<float> tempr_indx(number_of_vertex*(number_of_vertex - 1) / 2);
-	//	thrust::fill(tempr_indx.begin(), tempr_indx.end(), 0);
-	//	opacity_matrix = tempr_indx;
+		thrust::device_vector<opacity> tempr_indx(number_of_vertex*(number_of_vertex));
+	    thrust::fill(tempr_indx.begin(), tempr_indx.end(), 0.0);
+		opacity_matrix = tempr_indx;
 
 
 		temp_indx.clear();
@@ -724,21 +744,53 @@ public:
 		}
 	};
 
+	struct min_max_transform
+	{
+	
+		__host__ __device__
+		thrust::pair<double, double> operator()(thrust::tuple<double, double> t)
+		{
+
+				double min = thrust::get<0>(t) - thrust::get<1>(t) < 0? thrust::get<0>(t) : thrust::get<1>(t);
+				double max = thrust::get<0>(t) -thrust::get<1>(t) > 0 ? thrust::get<0>(t) : thrust::get<1>(t);
+
+				return thrust::make_pair(min, max);
+		}
+	};
+
+
+	struct opacity_counter
+	{
+
+		__host__ __device__
+		thrust::pair<double, double> operator()(thrust::tuple<double, double> t)
+		{
+
+			double min = thrust::get<0>(t) -thrust::get<1>(t) < 0 ? thrust::get<0>(t) : thrust::get<1>(t);
+			double max = thrust::get<0>(t) -thrust::get<1>(t) > 0 ? thrust::get<0>(t) : thrust::get<1>(t);
+
+			return thrust::make_pair(min, max);
+		}
+	};
+
+
+
 	/*
 	*	L opacity matrix calculation
 	*/
 
 	void calc_L_opacity()
 	{
-		for (int i = 1; i <= L_VALUE; i++)
+		for (int i = 1; i < L_VALUE; i++)
 		{
 			// full_edge_array - here we store all adjasent 
 			
 			vertex N = full_vertex_array[number_of_vertex - 1];
+			cout << "N+ " << N << endl;
 			thrust::device_vector<vertex> from(N);
 			// Forming indexes (from vertex)
 			int starting_point = 0;
-			int ending_point = full_vertex_array[(i-1)*number_of_vertex-1];
+			int ending_point = full_vertex_array[(i)*number_of_vertex-1];
 
 			if (i != 1)
 		
@@ -755,6 +807,15 @@ public:
 				thrust::make_counting_iterator<vertex>(ending_point),
 				from.begin(), replacer(thrust::raw_pointer_cast(full_vertex_array.data()), number_of_vertex)
 				);
+
+			// debug print 
+			cout << endl << "From degrees ";
+			for (auto iter : from)
+			{
+				cout << "  " << iter;
+			}
+			
+
 		//	from[0] = full_vertex_array[(number_of_vertex-1)*(i-1)];
 			/*
 			*	Transorming into indexes: 
@@ -763,45 +824,94 @@ public:
 
 			thrust::inclusive_scan(from.begin(), from.end(), from.begin());
 
+			cout << endl << "From degrees ";
+			for (auto iter : from)
+			{
+				cout << "  " << iter;
+			}
+
+
 			/* 
 			*	Transforming from indexes into degrees:
 			*	Example:  0 0 1 1 1 1 2 2 2.. => 2 2 4 4 4 4 ...
 			*/
-
+			
 			thrust::transform(thrust::make_permutation_iterator(vertex_degrees.begin(), from.begin()),
 				thrust::make_permutation_iterator(vertex_degrees.begin(), from.end()),
 				from.begin(), thrust::identity<vertex>());
+
+			cout << endl << "From degrees ";
+			for (auto iter : from)
+			{
+				cout << "  " << iter;
+			}
+
 
 			/*
 			*	To vector. Transform edge list into degree list =>  similar techno
 			*
 			*/
+
+
 			thrust::device_vector<vertex> to(N);
-			thrust::copy(
-				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin(), minus_one())),
-				thrust::make_permutation_iterator(vertex_degrees.begin(), thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one())),
-				to.begin());
+		//	auto iter_begin = thrust::make_transform_iterator(full_edge_array.begin(), minus_one());
+		//	auto iter_end =   thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one());
+			
+			thrust::transform(full_edge_array.begin(), full_edge_array.begin() + N, to.begin(), minus_one());
+			
+			cout << endl << "TO degrees ";
+			for (auto iter : to)
+			{
+				cout << "  " << iter;
+			}
+
+
+			thrust::transform(
+				thrust::make_permutation_iterator(vertex_degrees.begin(), to.begin()),
+				thrust::make_permutation_iterator(vertex_degrees.begin(), to.end()),
+				to.begin(), thrust::identity<vertex>());
+		
+			cout << endl << "TO degrees ";
+			for (auto iter : to)
+			{
+				cout << "  " << iter;
+			}
+
 			/*
 			 *  Find max and min in zip iterator of to - from pairs
 			 */
-			//	thrust::transform(
-			//			thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin()))
-			//
-			//	)
+			thrust::transform(
+				thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())), 
+				thrust::make_zip_iterator(thrust::make_tuple(from.end(), to.end())),
+				thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())),
+				min_max_transform()
+				);
+			cout << endl << "From degrees ";
+			for (auto iter : from)
+			{
+				cout << "  " << iter;
+			}
+
+			cout << endl << "TO degrees ";
+			for (auto iter : to)
+			{
+				cout << "  " << iter;
+			}
 
 			/*
-			 * 	Opacity  matrix forming. TODO: IN PARALLEL using cuda kernel
+			 * 	Opacity  matrix forming. Now it is n^ 2 memory TODO: IN PARALLEL using cuda kernel
 			 */
-
 
 			for (int i =0; i < N; i++)
-			{
-				opacity_matrix[number_of_vertex*from[i] + to[i]]++;
+		{
+				double min = degree_count[from[i] - 1] * degree_count[to[i] - 1];
+				if (degree_count[from[i] - 1] == degree_count[to[i] - 1])
+					min = degree_count[from[i] - 1];
+				cout  << endl << "FOR " << from[i]  <<" " << to[i]  << " = "<<  min;
+				opacity_matrix[max_degree*(from[i]-1) + (to[i]-1)] += 1.0/(2.0*min);
 			}
-			/*
-			 * 	Merge by key via indexes from and to. from: 1: N. to - N: 2N
-			 */
 
+			
 			/*
 			 * Sort by key. Indexes (values) and degrees (keys)
 			 */

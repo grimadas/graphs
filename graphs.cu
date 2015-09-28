@@ -18,6 +18,8 @@ int main()
 	//graph.single_bfs(2);
 	graph.form_full_level_graph();
 	//graph.print_csr_graph();
+	graph.calc_L_opacity();
+	graph.print_opacity_matrix();
 
 	
 	return 0;
