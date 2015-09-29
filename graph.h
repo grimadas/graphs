@@ -900,10 +900,12 @@ public:
 
 			/*
 			 * 	Opacity  matrix forming. Now it is n^ 2 memory TODO: IN PARALLEL using cuda kernel
+			 * 	Assumptions !!: Not optimum for undericted (div 2).
+			 * 	Problem with same degree. Example: {4 = > 4} - must count only degree of one.
 			 */
 
 			for (int i =0; i < N; i++)
-		{
+		   {
 				double min = degree_count[from[i] - 1] * degree_count[to[i] - 1];
 				if (degree_count[from[i] - 1] == degree_count[to[i] - 1])
 					min = degree_count[from[i] - 1];
