@@ -767,7 +767,7 @@ public:
 		{
 
 			double min = thrust::get<0>(t) -thrust::get<1>(t) < 0 ? thrust::get<0>(t) : thrust::get<1>(t);
-			double max = thrust::get<0>(t) -thrust::get<1>(t) > 0 ? thrust::get<0>(t) : thrust::get<1>(t);
+			double max = thrust::get<0>(t)	 -thrust::get<1>(t) > 0 ? thrust::get<0>(t) : thrust::get<1>(t);
 
 			return thrust::make_pair(min, max);
 		}

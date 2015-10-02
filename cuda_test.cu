@@ -32,12 +32,13 @@ using namespace std;
 
 //these can be altered on user depending on data set and type of operation(random test, read from file etc)
 #define BLOCK_SIZE 256
-#define RANGE 997
-#define RANDOM_GSIZE 700
+#define RANGE 1
+#define RANDOM_GSIZE 2 * 500
 #define FILE_GSIZE 8298//the number of edges in Wiki-Vote.txt if the file test is run
 #define INF (1<<22)
-#define DO_TEST_RANDOM 1
-#define DO_TEST_FROM_FILE 0
+#define DO_TEST_RANDOM 0
+#define DO_TEST_FROM_FILE 1
+#define DENSITY 25
 
 //typedef for vector used in path reconstruction
 typedef pair<pair<int,int>,int> Piii;
@@ -64,8 +65,9 @@ void _generate_result_file(bool success, unsigned int cpu_time, unsigned int gpu
 int main(){
 	char ch;
 	srand(time(NULL));
-
-	if(DO_TEST_RANDOM){//will use the #define(s) to init a random adjacency Matrix of RANDOM_GSIZE size
+	
+	//if(DO_TEST_RANDOM){//will use the #define(s) to init a random adjacency Matrix of RANDOM_GSIZE size
+		
 		const int NumBytes=RANDOM_GSIZE*RANDOM_GSIZE*sizeof(int);
 		//host allocations to create Adjancency matrix and result matrices with path matrices
 		int *OrigGraph=(int *)malloc(NumBytes);//will be original Adjancency matrix, will NOT be changed
@@ -74,7 +76,7 @@ int main(){
 		int *D_G=(int *)malloc(NumBytes);
 		int *D_Gpath=(int *)malloc(NumBytes);
 
-		_generateRandomGraph(OrigGraph,RANDOM_GSIZE,RANGE,25);//init graph with values
+		_generateRandomGraph(OrigGraph,RANDOM_GSIZE,RANGE,DENSITY);//init graph with values
 
 		cout<<"Successfully created random highly connected graph in adjacency Matrix form with "<<RANDOM_GSIZE*RANDOM_GSIZE<< " elements.\n";
 		cout<<"Also created 2 pairs of distinct result Matrices to store the respective results of the CPU results and the GPU results.\n";
@@ -88,7 +90,7 @@ int main(){
 		bool init = InitMMTimer(wTimerRes);
 		DWORD startTime = timeGetTime();
 
-		_CPU_Floyd(H_G,H_Gpath,RANDOM_GSIZE);//find shortest paths (with path construction) on serial CPU (Intel i7 3770 3.9 ghz)
+		//_CPU_Floyd(H_G,H_Gpath,RANDOM_GSIZE);//find shortest paths (with path construction) on serial CPU (Intel i7 3770 3.9 ghz)
 
 		DWORD endTime = timeGetTime();
 		cpu_time=unsigned int(endTime-startTime);
@@ -125,8 +127,37 @@ int main(){
 		}else
 			cout<<"Path reconstruction Matrices Not Equal!\n";
 
+		cout << "Graph is " << endl ;
+	/*	for (int i = 0; i<RANDOM_GSIZE; i++){//copy for use in computation
+			for (int j = 0; j < RANDOM_GSIZE; j++)
+			{
+				cout << D_G[i*RANDOM_GSIZE + j] << "  ";
+			}
+			cout << endl;
+		}
+
+		cout << "Orig Graph is " << endl;
+		for (int i = 0; i<RANDOM_GSIZE; i++){//copy for use in computation
+			for (int j = 0; j < RANDOM_GSIZE; j++)
+			{
+				cout << OrigGraph[i*RANDOM_GSIZE + j] << "  ";
+			}
+			cout << endl;
+		}
+
+		cout << "Graph Path " << endl;
+		for (int i = 0; i<RANDOM_GSIZE; i++){//copy for use in computation
+			for (int j = 0; j < RANDOM_GSIZE; j++)
+			{
+				cout << D_Gpath[i*RANDOM_GSIZE + j] << "  ";
+			}
+			cout << endl;
+		}
+		*/
+
 		_get_full_paths(D_G,D_Gpath,RANDOM_GSIZE);//find out exact step-by-step shortest paths between vertices(if such a path exists)
 
+	
 		_generate_result_file( bool(same_adj_Matrix==0 && same_path_Matrix==0),cpu_time,gpu_time,RANDOM_GSIZE);
 
 		free(OrigGraph);
@@ -134,8 +165,93 @@ int main(){
 		free(H_Gpath);
 		free(D_G);
 		free(D_Gpath);
-	}
+	//}//
+	//else
+	//{ /**/
+		
+/*
+		const int N = 2* 500;
+		const int NumBytes = N*N*sizeof(int);
+		//host allocations to create Adjancency matrix and result matrices with path matrices
+		int *OrigGraph = (int *)malloc(NumBytes);//will be original Adjancency matrix, will NOT be changed
+		int *H_G = (int *)malloc(NumBytes);
+		int *H_Gpath = (int *)malloc(NumBytes);
+		int *D_G = (int *)malloc(NumBytes);
+		int *D_Gpath = (int *)malloc(NumBytes);
+	
+		
+		for (int i = 0; i<N*N; i++){//copy for use in computation
+			//	H_G[i] = D_G[i] = OrigGraph[i];//copy for use in computation
+			H_Gpath[i] = D_Gpath[i] = -1;//set to all negative ones for use in path construction
+			H_G[i] = INF;
+		}
+		
+		//Read file from file 
+		cout << "Reading file with graph: \n ";
+		_read_from_file(H_G, N);
+		cout << "Assigning initial paths ";
 
+		
+		cout << "Graph " << endl;
+		for (int i = 0; i<N; i++){//copy for use in computation
+			for (int j = 0; j < N; j++)
+			{
+				if (i == j)
+					H_G[i*N + j] = 0;
+	//			cout << H_G[i*N + j] << "  ";
+				
+			}
+		//	cout << endl;
+		}
+		unsigned int cpu_time = 0, gpu_time = 0, endTime = 0;
+	
+		UINT wTimerRes = 0;
+		bool init = InitMMTimer(wTimerRes);
+		DWORD startTime = timeGetTime();
+
+
+
+		cout << "\nFloyd-Warshall on GPU underway:\n";
+		_Wake_GPU << <1, BLOCK_SIZE >> >(32);
+
+		//call host function which will copy all info to device and run CUDA kernels
+		wTimerRes = 0;
+		init = InitMMTimer(wTimerRes);
+		startTime = timeGetTime();
+
+		_GPU_Floyd(H_G, H_Gpath, N);
+
+		endTime = timeGetTime();
+		gpu_time = unsigned int(endTime - startTime);
+		printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
+		DestroyMMTimer(wTimerRes, init);
+
+		cout << "H_PATH" << endl;
+		for (int i = 0; i<N; i++){//copy for use in computation
+			for (int j = 0; j < N; j++)
+			{
+			//	cout << H_Gpath[i*N + j] << "  ";
+			}
+			//cout << endl;
+		}
+
+		cout << "H_G" << endl;
+		for (int i = 0; i<N; i++){//copy for use in computation
+			for (int j = 0; j < N; j++)
+			{
+		//		cout << H_G[i*N + j] << "  ";
+			}
+		//	cout << endl;
+		}
+
+
+		free(OrigGraph);
+		free(H_G);
+		free(H_Gpath);
+		free(D_G);
+		free(D_Gpath);
+	//}
+	*/
 	_CrtDumpMemoryLeaks();
 	cin>>ch;
 	return 0;
@@ -178,7 +294,7 @@ bool _getPath(int curEdge, int nxtEdge,vector<Piii> &path,const int *D, const in
 	if(Dpath[curIdx]==-1){//end of backwards retracement
 		path.push_back(make_pair(make_pair(curEdge,nxtEdge),D[curIdx]));
 		return true;
-	}else{//record last edge cost and move backwards
+	}else{//record las t edge cost and move backwards
 		path.push_back(make_pair(make_pair(Dpath[curIdx],nxtEdge),D[Dpath[curIdx]*N+nxtEdge]));
 		return _getPath(curEdge,Dpath[curIdx],path,D,Dpath,N);
 	}
@@ -219,10 +335,12 @@ __global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N){//G will be the a
 	if(threadIdx.x==0)
 		best=G[N*blockIdx.y+k];
 	__syncthreads();
-	if(best==INF)return;
+	if(best==INF || best > 10)return;
 	int tmp_b=G[k*N+col];
-	if(tmp_b==INF)return;
-	int cur=best+tmp_b;
+	if(tmp_b==INF || tmp_b > 10)return;
+//	if (cur > 1)
+//		return;
+	int cur = best + tmp_b;
 	if(cur<G[idx]){
 		G[idx]=cur;
 		P[idx]=k;
@@ -283,16 +401,20 @@ int _read_from_file(int *G,const int N){//reads in edge list from file
 
 	ifstream readfile;//enable stream for reading file
 	readfile.open("Wiki-Vote.txt");
+	cout << "Opening sucess \n";
 	assert(readfile.good());//make sure it finds the file & file is
 	string line;
 	int v0,v1;
 	while(getline(readfile,line)){
 		istringstream linestream(line);
 		linestream>>v0>>v1;
+		cout << v0 <<"  "<< v1 <<  " readed ";
 		G[v0*N+v1]=1;
+		G[v1*N + v0] = 1;
 		num_edges++;
 	}
 	readfile.close();
+	cout << "File closing \n"; 
 	return num_edges;
 }
 
