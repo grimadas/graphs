@@ -99,7 +99,7 @@ public:
 	thrust::device_vector<field> vertex_degrees;
 	thrust::device_vector<field> degree_count;
 	field max_degree;
-	
+
 	thrust::device_vector<opacity> opacity_matrix;
 
 	unsigned int number_of_vertex;
@@ -149,7 +149,7 @@ public:
 			cout << "  " << iter;
 		}
 		cout << endl;
-		
+
 		cout << "Vertex offset: ";
 		for (auto iter : full_vertex_array)
 		{
@@ -166,7 +166,7 @@ public:
 	}
 
 	/**
-	*	Print opacity matrix 
+	*	Print opacity matrix
 	*/
 	void print_opacity_matrix()
 	{
@@ -267,8 +267,8 @@ public:
 		temp_indx.shrink_to_fit();
 		vertex_degrees = temp_indx;
 		degree_count = temp_indx;
-		
-		// Init opacity matrix 
+
+		// Init opacity matrix
 		thrust::device_vector<opacity> tempr_indx(number_of_vertex*(number_of_vertex));
 	    thrust::fill(tempr_indx.begin(), tempr_indx.end(), 0.0);
 		opacity_matrix = tempr_indx;
@@ -283,7 +283,7 @@ public:
 		current_end = 2 * number_of_edges;
 
 
-	
+
 
 	}
 
@@ -336,7 +336,7 @@ public:
 
 		thrust::reduce_by_key(degree_count.begin(), degree_count.end(), thrust::make_constant_iterator(1),
 			thrust::make_discard_iterator(), degree_count.begin());
-	
+
 
 		thrust::inclusive_scan(full_vertex_array.begin(), full_vertex_array.begin()+number_of_vertex, full_vertex_array.begin());
 
@@ -688,7 +688,7 @@ public:
 				thrust::make_permutation_iterator(full_edge_array.begin(), thrust::make_counting_iterator<vertex>(temp[i])),
 				current);
 
-			
+
 
 		}
 
@@ -696,11 +696,11 @@ public:
 		int end = full_vertex_array[current_index];
 		// Remove current vertex (avoid loops)
 		current = thrust::remove(previous, current, current_index + 1);
-		
+
 		cout <<endl << "Tempo " << current_index << ": ";
 		// sort connected edges
 		thrust::sort(previous, current);
-		// remove dublicates 
+		// remove dublicates
 		current = thrust::unique(previous, current);
 		// Remove all vertex that are already discovered
 		for (auto j = full_edge_array.begin() + start; j != full_edge_array.begin() + end; j++)
@@ -711,8 +711,8 @@ public:
 		// Print all edges from current vertex
 		thrust::for_each(previous, current, printer());
 		full_vertex_array[current_index + number_of_vertex] = thrust::distance(previous, current);
-		
-	
+
+
 		cout << "Tempo   ";
 		for (auto iter : tempo)
 		{
@@ -720,14 +720,14 @@ public:
 		}
 		cout << endl;
 
-		// Update vertex 
+		// Update vertex
 		thrust::inclusive_scan(full_vertex_array.begin() + (number_of_vertex - 1), full_vertex_array.begin() + 2 * (number_of_vertex), full_vertex_array.begin() + (number_of_vertex - 1));
 		// Update edges
 		thrust::copy(tempo.begin(), current, full_edge_array.begin() + full_vertex_array[number_of_vertex-1]);
 
 
 		print_csr_graph();
-		
+
 
 
 	}
@@ -740,13 +740,13 @@ public:
 		{
 			// -1 :
 			return t - 1;
-			
+
 		}
 	};
 
 	struct min_max_transform
 	{
-	
+
 		__host__ __device__
 		thrust::pair<double, double> operator()(thrust::tuple<double, double> t)
 		{
@@ -773,18 +773,22 @@ public:
 		}
 	};
 
-
+	__device__ void  test_funct(domain a, int end)
+	{
+		thrust::for_each(thrust::device, a, a + end, printer());
+	}
 
 	/*
 	*	L opacity matrix calculation
 	*/
 
+
 	void calc_L_opacity()
 	{
 		for (int i = 1; i < L_VALUE; i++)
 		{
-			// full_edge_array - here we store all adjasent 
-			
+			// full_edge_array - here we store all adjasent
+
 			vertex N = full_vertex_array[number_of_vertex - 1];
 			cout << "N+ " << N << endl;
 			thrust::device_vector<vertex> from(N);
@@ -793,7 +797,7 @@ public:
 			int ending_point = full_vertex_array[(i)*number_of_vertex-1];
 
 			if (i != 1)
-		
+
 			{
 				starting_point = full_vertex_array[(i - 1)*number_of_vertex - 1];
 
@@ -808,17 +812,17 @@ public:
 				from.begin(), replacer(thrust::raw_pointer_cast(full_vertex_array.data()), number_of_vertex)
 				);
 
-			// debug print 
+			// debug print
 			cout << endl << "From degrees ";
 			for (auto iter : from)
 			{
 				cout << "  " << iter;
 			}
-			
+
 
 		//	from[0] = full_vertex_array[(number_of_vertex-1)*(i-1)];
 			/*
-			*	Transorming into indexes: 
+			*	Transorming into indexes:
 			*	Example:	0 0 1 0 0 0 1 => 0 0 1 1 1 1 2 2 2 ..
 			*/
 
@@ -831,11 +835,11 @@ public:
 			}
 
 
-			/* 
+			/*
 			*	Transforming from indexes into degrees:
 			*	Example:  0 0 1 1 1 1 2 2 2.. => 2 2 4 4 4 4 ...
 			*/
-			
+
 			thrust::transform(thrust::make_permutation_iterator(vertex_degrees.begin(), from.begin()),
 				thrust::make_permutation_iterator(vertex_degrees.begin(), from.end()),
 				from.begin(), thrust::identity<vertex>());
@@ -856,9 +860,9 @@ public:
 			thrust::device_vector<vertex> to(N);
 		//	auto iter_begin = thrust::make_transform_iterator(full_edge_array.begin(), minus_one());
 		//	auto iter_end =   thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one());
-			
+
 			thrust::transform(full_edge_array.begin(), full_edge_array.begin() + N, to.begin(), minus_one());
-			
+
 			cout << endl << "TO degrees ";
 			for (auto iter : to)
 			{
@@ -870,7 +874,7 @@ public:
 				thrust::make_permutation_iterator(vertex_degrees.begin(), to.begin()),
 				thrust::make_permutation_iterator(vertex_degrees.begin(), to.end()),
 				to.begin(), thrust::identity<vertex>());
-		
+
 			cout << endl << "TO degrees ";
 			for (auto iter : to)
 			{
@@ -881,7 +885,7 @@ public:
 			 *  Find max and min in zip iterator of to - from pairs
 			 */
 			thrust::transform(
-				thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())), 
+				thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())),
 				thrust::make_zip_iterator(thrust::make_tuple(from.end(), to.end())),
 				thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())),
 				min_max_transform()
@@ -913,7 +917,7 @@ public:
 				opacity_matrix[max_degree*(from[i]-1) + (to[i]-1)] += 1.0/(2.0*min);
 			}
 
-			
+
 			/*
 			 * Sort by key. Indexes (values) and degrees (keys)
 			 */
