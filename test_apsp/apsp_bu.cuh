@@ -18,6 +18,7 @@
 #include <cuda.h>
 #include <ctime>
 #include <cassert>
+
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #define pb push_back
@@ -135,6 +136,15 @@ __global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N){//G will be the a
 		P[idx]=k;
 	}
 }
+
+__global__ void Floyd_main(int *G,int *P, int N, int block_size)
+{
+		int k=blockIdx.x*blockDim.x + threadIdx.x;
+		dim3 dimGrid((N+block_size-1)/block_size,N);
+		_GPU_Floyd_kernel<<<dimGrid,block_size>>>(k,G,P,N);
+		cudaThreadSynchronize();
+}
+
 void _GPU_Floyd(int *H_G, int *H_Gpath, const int N){
 	//allocate device memory and copy graph data from host
 	int *dG,*dP;
@@ -149,14 +159,10 @@ void _GPU_Floyd(int *H_G, int *H_Gpath, const int N){
 	err=cudaMemcpy(dP,H_Gpath,numBytes,_HTD);
 	if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}
 
-	dim3 dimGrid((N+BLOCK_SIZE-1)/BLOCK_SIZE,N);
 
-	for(int k=0;k<N;k++){//main loop
-
-		_GPU_Floyd_kernel<<<dimGrid,BLOCK_SIZE>>>(k,dG,dP,N);
+		Floyd_main<<<1, N>>>(dG, dP, N, BLOCK_SIZE);
 		err = cudaThreadSynchronize();
 		if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}
-	}
 	//copy back memory
 	err=cudaMemcpy(H_G,dG,numBytes,_DTH);
 	if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}
