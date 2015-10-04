@@ -60,6 +60,33 @@
 
 
 
+#include <algorithm>
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <utility>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <map>
+#include <cuda.h>
+#include <ctime>
+#include <cassert>
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#define pb push_back
+#define all(c) (c).begin(),(c).end()
+#include <Windows.h>
+#include <MMSystem.h>
+#pragma comment(lib, "winmm.lib")
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>//to detect host memory leaks
+
+
+
 using namespace std;
 
 int a = 0;
@@ -551,6 +578,42 @@ public:
 
 
 	};
+
+
+	__global__  void expander(thrust::device_vector<vertex>::iterator* previous,
+		thrust::device_vector<vertex>::iterator* current,
+		domain current_vertex, domain temp_from, domain temp, domain full_vertex_array, domain full_edge_array
+		)
+	{
+
+		int idx = blockIdx.x*blockDim.x + threadIdx.x;
+		current[current_vertex[idx]] = thrust::copy(thrust::seq,
+			thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_from[idx])),
+			thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp[idx])),
+			current[current_vertex[idx]]);
+
+
+		int start = 0;
+		if (idx != 0)
+		{
+			start = full_vertex_array[current_vertex[idx - 1]];
+		}
+		int end = full_vertex_array[current_vertex[idx]];
+
+		current[current_vertex[idx]] = thrust::remove(previous[current_vertex[idx]], current[current_vertex[idx]], current_vertex[idx] + 1);
+
+		thrust::sort(previous[current_vertex[idx]], current[current_vertex[idx]]);
+		current[current_vertex[idx]] = thrust::unique(previous[current_vertex[idx]], current[current_vertex[idx]]);
+
+		for (auto j = full_edge_array + start; j != full_edge_array + end; j++)
+		{
+			current[current_vertex[idx]] = thrust::remove(previous[current_vertex[idx]], current[current_vertex[idx]], *j);
+		}
+
+		full_vertex_array[current_vertex[idx] + number_of_vertex] = thrust::distance(previous[current_vertex[idx]], current[current_vertex[idx]]);
+		previous[current_vertex[idx]] = current[current_vertex[idx]];
+	}
+
 	/*
 	*	By finding shortest paths, form to L_VALUE level
 	*/
@@ -634,6 +697,18 @@ public:
 		/**/
 		int current_index = 0;
 		thrust::device_vector<vertex>::iterator previous = current;
+
+		// Change it to paralel version
+		// expander<<<1, NUM>>(c, full_vertex_array, full_edge_array)
+		// {
+
+
+
+			// Put a value into vertex array
+
+
+
+		/*
 		for (int i = 0; i < NUM; i++)
 		{
 			if (c[i] != current_index)
@@ -711,7 +786,7 @@ public:
 		// Print all edges from current vertex
 		thrust::for_each(previous, current, printer());
 		full_vertex_array[current_index + number_of_vertex] = thrust::distance(previous, current);
-
+		*/
 
 		cout << "Tempo   ";
 		for (auto iter : tempo)
