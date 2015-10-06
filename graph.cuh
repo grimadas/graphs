@@ -1,8 +1,3 @@
-/*
-
-*/
-
-
 /************************************************
 * 												*
 *  CUDA graph representation					*
@@ -32,8 +27,8 @@
 */
 
 
-#ifndef graph_h
-#define graph_h
+#ifndef graph_cuh
+#define graph_cuh
 
 // STL includes
 #include <stdio.h>
@@ -91,11 +86,6 @@ using namespace std;
 
 int a = 0;
 
-
-
-class Graph
-{
-
 #define vertex  unsigned int
 #define edge  unsigned int
 
@@ -106,7 +96,6 @@ class Graph
 
 
 	int L_VALUE = 2;
-public:
 
 	// CSR with levels graph format
 	// Distance matrix in a nuttshell
@@ -454,7 +443,7 @@ public:
 
 
 
-	struct  equal
+	struct  equal1
 	{
 
 		__host__ __device__
@@ -466,10 +455,10 @@ public:
 
 	};
 
-	struct  prev
+	struct  prev1
 	{
 		__host__ __device__
-		prev(int _nums) : nums(_nums) {}
+		prev1(int _nums) : nums(_nums) {}
 
 		__host__ __device__
 		field operator()(field x)
@@ -582,7 +571,8 @@ public:
 
 	__global__  void expander(thrust::device_vector<vertex>::iterator* previous,
 		thrust::device_vector<vertex>::iterator* current,
-		domain current_vertex, domain temp_from, domain temp, domain full_vertex_array, domain full_edge_array
+		domain current_vertex, domain temp_from, domain temp, domain full_vertex_array, domain full_edge_array,
+		int number_of_vertex
 		)
 	{
 
@@ -632,10 +622,10 @@ public:
 		thrust::device_vector<vertex> temp_from(number_of_edges * 2);
 
 		thrust::copy(full_edge_array.begin(), full_edge_array.begin() + 2 * number_of_edges, temp.begin());
-		thrust::transform(temp.begin(), temp.end(), temp.begin(), equal());
+		thrust::transform(temp.begin(), temp.end(), temp.begin(), equal1());
 
 		thrust::copy(full_edge_array.begin(), full_edge_array.begin() + 2 * number_of_edges, temp_from.begin());
-		thrust::transform(temp_from.begin(), temp_from.end(), temp_from.begin(), prev(number_of_vertex + 1));
+		thrust::transform(temp_from.begin(), temp_from.end(), temp_from.begin(), prev1(number_of_vertex + 1));
 
 		thrust::copy(
 
@@ -680,8 +670,7 @@ public:
 		vertex N = full_vertex_array[number_of_vertex - 1];
 		thrust::device_vector<vertex> c (2*N);
 
-		thrust::device_vector<vertex> tempo(2*N);
-		thrust::device_vector<vertex>::iterator current = tempo.begin();
+
 
 		int NUM = thrust::distance(temp.begin(), temp.end());
 
@@ -696,8 +685,28 @@ public:
 		thrust::inclusive_scan(c.begin(), c.end(), c.begin());
 		/**/
 		int current_index = 0;
-		thrust::device_vector<vertex>::iterator previous = current;
 
+		/*
+		*	Graph init
+		*/
+		thrust::device_vector<vertex>::iterator* previous = new thrust::device_vector<vertex>::iterator[number_of_vertex];
+		thrust::device_vector<vertex>::iterator* current = new thrust::device_vector<vertex>::iterator[number_of_vertex];
+		thrust::device_vector<vertex>* tempo = new thrust::device_vector<vertex>[number_of_vertex];
+
+		for (int i=0; i< number_of_vertex; i++)
+		{
+
+			tempo[i].reserve(2 * number_of_vertex);
+			current[i] = tempo[i].begin();
+			previous[i] = current[i];
+		}
+		domain _temp_from = thrust::raw_pointer_cast(temp_from.begin());
+		domain _temp = thrust::raw_pointer_cast(temp.begin());
+		domain _full_vertex = thrust::raw_pointer_cast(full_vertex_array.begin());
+		domain _full_edge = thrust::raw_pointer_cast(full_edge_array.data());
+
+
+		expander << <1, NUM >> > (previous, current, thrust::raw_pointer_cast(c.data()), _temp_from, _temp, _full_vertex, _full_edge, number_of_vertex);
 		// Change it to paralel version
 		// expander<<<1, NUM>>(c, full_vertex_array, full_edge_array)
 		// {
@@ -712,7 +721,8 @@ public:
 		for (int i = 0; i < NUM; i++)
 		{
 			if (c[i] != current_index)
-			{
+
+		{
 				// We finish expanding for current index
 				int start = 0;
 				if (current_index != 0)
@@ -789,12 +799,12 @@ public:
 		*/
 
 		cout << "Tempo   ";
-		for (auto iter : tempo)
+		for (auto iter : tempo[0])
 		{
 			cout << "  " << iter;
 		}
 		cout << endl;
-
+		/*
 		// Update vertex
 		thrust::inclusive_scan(full_vertex_array.begin() + (number_of_vertex - 1), full_vertex_array.begin() + 2 * (number_of_vertex), full_vertex_array.begin() + (number_of_vertex - 1));
 		// Update edges
@@ -802,7 +812,7 @@ public:
 
 
 		print_csr_graph();
-
+		*/
 
 
 	}
