@@ -52,10 +52,10 @@
 #define _HTD cudaMemcpyHostToDevice
 
 //typedef for vector used in path reconstruction
-typedef pair<pair<int,int>,int> Piii;
+
 
 using namespace std;
-
+typedef pair<pair<int,int>,int> Piii;
 
 // Predefined constants
 //these can be altered on user depending

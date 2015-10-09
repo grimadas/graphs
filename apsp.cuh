@@ -5,6 +5,8 @@
 // and in serial CPU code using an Intel i7-3770 3.9 ghz.
 
 //forward function declarations
+#include "headers.h"
+
 bool InitMMTimer(UINT wTimerRes){
 	TIMECAPS tc;
 	if (timeGetDevCaps(&tc, sizeof(TIMECAPS)) != TIMERR_NOERROR) {return false;}
