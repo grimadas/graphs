@@ -26,108 +26,43 @@
 
 */
 
-
-#ifndef graph_cuh
-#define graph_cuh
-
-// STL includes
-#include <stdio.h>
-#include <ctime>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <time.h>
-// Thrust includes
-#include <thrust/version.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
-#include <thrust/find.h>
-#include <thrust/count.h>
-#include <thrust/reduce.h>
-#include <thrust/merge.h>
-#include <thrust/sequence.h>
-#include <thrust\sort.h>
-#include <thrust/unique.h>
-#include <thrust/execution_policy.h>
-#include <thrust\iterator\counting_iterator.h>
-#include <thrust\iterator\permutation_iterator.h>
-#include <thrust\binary_search.h>
+#include "headers.h"
 
 
+class Graph {
+public:
+// CSR with levels graph format
+// Distance matrix in a nuttshell
+thrust::device_vector<vertex> full_vertex_array;
+thrust::device_vector<vertex> full_edge_array;
 
-#include <algorithm>
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <utility>
-#include <cstdlib>
-#include <cstdio>
-#include <cstring>
-#include <vector>
-#include <string>
-#include <cmath>
-#include <map>
-#include <cuda.h>
-#include <ctime>
-#include <cassert>
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#define pb push_back
-#define all(c) (c).begin(),(c).end()
-#include <Windows.h>
-#include <MMSystem.h>
-#pragma comment(lib, "winmm.lib")
-#define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>//to detect host memory leaks
+int L_VALUE = 2;
 
-
-
-using namespace std;
-
-int a = 0;
-
-#define vertex  unsigned int
-#define edge  unsigned int
-
-#define domain vertex*
-#define field  vertex
-
-#define opacity double
-
-
-	int L_VALUE = 2;
-
-	// CSR with levels graph format
-	// Distance matrix in a nuttshell
-	thrust::device_vector<vertex> full_vertex_array;
-	thrust::device_vector<vertex> full_edge_array;
-
-	// Current
-	thrust::device_vector<vertex>::iterator vertex_current_end;
-	int current_end;
+// Current
+thrust::device_vector<vertex>::iterator vertex_current_end;
+int current_end;
 
 	// COO graph format (coordinate list)
-	thrust::device_vector<vertex> from_array;
-	thrust::device_vector<vertex> to_array;
-	// Distance oracle
-	// ?
-	// Additional arrays
-	thrust::device_vector<field> vertex_degrees;
-	thrust::device_vector<field> degree_count;
-	field max_degree;
+thrust::device_vector<vertex> from_array;
+thrust::device_vector<vertex> to_array;
 
-	thrust::device_vector<opacity> opacity_matrix;
+// Additional arrays
+thrust::device_vector<field> vertex_degrees;
+thrust::device_vector<field> degree_count;
+field max_degree;
 
-	unsigned int number_of_vertex;
-	unsigned int number_of_edges;
+thrust::device_vector<opacity> opacity_matrix;
 
-	/** ** ** **
-	*		Read graph in Edge list format (COO)
-	*		input:
-	*					string file_name
-	*/
-	void read_COO_format(string file_name)
-	{
+unsigned int number_of_vertex;
+unsigned int number_of_edges;
+
+/** ** ** **
+*		Read graph in Edge list format (COO)
+*		input:
+*					string file_name
+*/
+void read_COO_format(string file_name)
+{
 		ifstream myfile;
 		myfile.open(file_name);
 		myfile >> number_of_vertex >> number_of_edges;
@@ -144,7 +79,7 @@ int a = 0;
 		}
 		// Reading from file
 		myfile.close();
-	}
+}
 
 	/**
 	*	Print full graph CSR format
@@ -198,8 +133,9 @@ int a = 0;
 	}
 
 
-	/**
-	*	Print graph in (one layer, initial state) COO format (edge list)
+	/******
+	*	Print graph in (one layer, initial state)
+	* COO format (edge list)
 	*
 	*/
 	void print_coo_graph()
@@ -220,7 +156,7 @@ int a = 0;
 
 	}
 
-	/**
+	/******
 	* 	Reading test graph presented in the paper "L-opacity"
 	*/
 	void init_test_graph()
@@ -229,46 +165,12 @@ int a = 0;
 		read_COO_format("graph.txt");
 
 	}
-	// ----------------------------------------------------------------
-	/**
-	*	 Converter functor,
-	*	 INPUT:
-	*				_a - from_array
-	*				_b - to_array
-	*				_size - number_of_edges
-	*/
-	struct coo_to_csr_converter
-	{
-		__host__ __device__
-		coo_to_csr_converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
 
-		__host__ __device__
-			field operator()(field x)
-		{
-
-				if (x < size)
-				{
-					return b[x];
-				}
-				else
-				{
-					return a[x - size];
-				}
-
-
-			}
-
-		domain a;
-		domain b;
-		int size;
-	};
 
 
 	void init_arrays()
 	{
 
-	//	full_edge_array.reserve(2 * L_VALUE * number_of_edges);
-	//	full_vertex_array.reserve(L_VALUE*number_of_vertex);
 
 		thrust::device_vector<vertex> temp_indx(2 * L_VALUE* number_of_edges);
 		// Init edge vector
@@ -283,6 +185,9 @@ int a = 0;
 		temp_indx.shrink_to_fit();
 		vertex_degrees = temp_indx;
 		degree_count = temp_indx;
+		//	full_edge_array.reserve(2 * L_VALUE * number_of_edges);
+		//	full_vertex_array.reserve(L_VALUE*number_of_vertex);
+
 
 		// Init opacity matrix
 		thrust::device_vector<opacity> tempr_indx(number_of_vertex*(number_of_vertex));
@@ -292,14 +197,8 @@ int a = 0;
 
 		temp_indx.clear();
 		temp_indx.shrink_to_fit();
-//
-//		tempr_indx.clear();
-//		tempr_indx.shrink_to_fit();
 
 		current_end = 2 * number_of_edges;
-
-
-
 
 	}
 
@@ -322,14 +221,14 @@ int a = 0;
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		thrust::merge_by_key(from_array.begin(), from_array.end(),
+		thrust::merge_by_key(thrust::device,from_array.begin(), from_array.end(),
 			to_array.begin(), to_array.end(),
 			index_from, index_to,
 			temp_indx.begin(),
 			full_edge_array.begin()
 			);
 
-		thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
+		thrust::sort_by_key(thrust::device, temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
 
 
 		/*
@@ -337,24 +236,24 @@ int a = 0;
 		*/
 
 
-		thrust::reduce_by_key(temp_indx.begin(), temp_indx.end(),
+		thrust::reduce_by_key(thrust::device, temp_indx.begin(), temp_indx.end(),
 			thrust::make_constant_iterator(1), temp_indx.begin(), full_vertex_array.begin());
 
 		/*
 		*	Form degree vector
 		*/
 
-		thrust::copy(full_vertex_array.begin(), full_vertex_array.begin() + number_of_vertex, vertex_degrees.begin());
+		thrust::copy(thrust::device, full_vertex_array.begin(), full_vertex_array.begin() + number_of_vertex, vertex_degrees.begin());
 
-		thrust::copy(vertex_degrees.begin(), vertex_degrees.end(), degree_count.begin());
-		thrust::sort(degree_count.begin(), degree_count.end());
+		thrust::copy(thrust::device, vertex_degrees.begin(), vertex_degrees.end(), degree_count.begin());
+		thrust::sort(thrust::device, degree_count.begin(), degree_count.end());
 		max_degree = degree_count[number_of_vertex - 1];
 
-		thrust::reduce_by_key(degree_count.begin(), degree_count.end(), thrust::make_constant_iterator(1),
+		thrust::reduce_by_key(thrust::device, degree_count.begin(), degree_count.end(), thrust::make_constant_iterator(1),
 			thrust::make_discard_iterator(), degree_count.begin());
 
 
-		thrust::inclusive_scan(full_vertex_array.begin(), full_vertex_array.begin()+number_of_vertex, full_vertex_array.begin());
+		thrust::inclusive_scan(thrust::device, full_vertex_array.begin(), full_vertex_array.begin()+number_of_vertex, full_vertex_array.begin());
 
 		// Clean temporal arrays
 
