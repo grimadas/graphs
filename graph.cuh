@@ -46,6 +46,9 @@ int L_VALUE = 2;
 	// COO graph format (coordinate list)
 domain from_array_host;
 domain to_array_host;
+// Copy of arrays in the device
+domain from_array;
+domain to_array;
 
 // Additional arrays
 domain vertex_degrees;
@@ -57,36 +60,43 @@ opacity* opacity_matrix;
 int number_of_vertex;
 int number_of_edges;
 
-	/** ** ** **
+bool directed = False;
+
+	/************************************
 	*		Read graph in Edge list format (COO)
 	*		input:
 	*					string file_name
-	*/
+	**************************************/
 	void read_COO_format(string file_name)
 	{
 			ifstream myfile;
 			myfile.open(file_name);
 			myfile >> number_of_vertex >> number_of_edges;
 		//	number_of_edges = 0;
-			printf("%d %d \n", number_of_vertex, number_of_edges);
+			printf("Graph parametrs %d %d \n", number_of_vertex, number_of_edges);
 			// reserve maximum value needed
-			from_array.reserve(number_of_edges);
-			to_array.reserve(number_of_vertex);
+			from_array_host = new vertex[number_of_vertex];
+			to_array_host = new vertex[number_of_vertex];
 			// Read a pair of vertex - vertex forming an edge
 			int a, b;
+			number_of_edges = 0;
 			while (myfile >> a >> b)
 			{
-				from_array.push_back(a);
-				to_array.push_back(b);
+				from_array[i] = a;
+				to_array[i] = b;
+				number_edges++;
 			}
 			// Reading from file
 			myfile.close();
 	}
 
-	/**
+	/**********************************
 	*	Print full graph CSR format
-	*
-	*/
+	* Require:
+	*					vertex_degrees != NULL
+	*					full_vertex_array != NULL
+	*					after_array_init
+	************************************/
 	void print_csr_graph()
 	{
 		cout << "Vertex degrees ";
@@ -118,9 +128,12 @@ int number_of_edges;
 		cout << endl;
 	}
 
-	/**
-	*	Print opacity matrix
-	*/
+	/**********************************
+	*	Print opacity matrix ON_HOST
+	*	Require:
+	*						opacity_matrix != NULL
+	*
+	*********************************/
 	void print_opacity_matrix()
 	{
 		cout<< endl  << "Opacity : " << endl;
@@ -135,21 +148,21 @@ int number_of_edges;
 	}
 
 
-	/******
+	/**************************************
 	*	Print graph in (one layer, initial state)
-	* COO format (edge list)
+	* COO format (edge list) ON_HOST
 	*
-	*/
+	*************************************/
 	void print_coo_graph()
 	{
 		cout << "From ";
-		for (auto iter : from_array)
+		for (auto iter : from_array_host)
 		{
 			cout << "  " << iter;
 		}
 		cout << endl;
 		cout << "To   ";
-		for (auto iter : to_array)
+		for (auto iter : to_array_host)
 		{
 			cout << "  " << iter;
 		}
@@ -158,50 +171,42 @@ int number_of_edges;
 
 	}
 
-	/******
+	/*******************************************
 	* 	Reading test graph presented in the paper "L-opacity"
-	*/
+	********************************************/
 	void init_test_graph()
 	{
 		// COO format
 		read_COO_format("graph.txt");
-
 	}
 
-
-
+	/******************************************
+	*	Init arrays  via after to arrays
+	*****************************************/
 	void init_arrays()
 	{
-
-
-		thrust::device_vector<vertex> temp_indx(2 * L_VALUE* number_of_edges);
-		// Edge vector init
-		full_edge_array = temp_indx;
-		// Init vertex vector
-		temp_indx.resize(L_VALUE*number_of_vertex);
-		temp_indx.shrink_to_fit();
-		full_vertex_array = temp_indx;
+		int num_edges=L_VALUE*number_of_edges*sizeof(vertex);
+		int num_vertex=L_VALUE*number_of_vertex*sizeof(vertex);
+		if (!directed)
+				num_edges *= 2; // double edges
+		cudaMalloc((domain*)&full_edge_array,num_edges);
+		cudaMalloc((domain*)&full_vertex_array,num_vertex);
+		/* Copy arrays to device */
+		cudaMemcpy(from_array,from_array_host,number_of_edges*sizeof(vertex),_HTD);
+		cudaMemcpy(to_array,to_array_host,number_of_edges*sizeof(vertex),_HTD);
 		// Init degree vector
-		temp_indx.resize(number_of_vertex);
-		temp_indx.shrink_to_fit();
-		vertex_degrees = temp_indx;
-		degree_count = temp_indx;
+		cudaMalloc((domain*)&vertex_degrees, number_of_vertex * sizeof(vertex));
+		cudaMalloc((domain*)&degree_count, number_of_vertex * sizeof(vertex));
 		// Init opacity matrix TODO: memory if n^2
-		thrust::device_vector<opacity> tempr_indx(number_of_vertex*(number_of_vertex));
-	  thrust::fill(tempr_indx.begin(), tempr_indx.end(), 0.0);
-		opacity_matrix = tempr_indx;
-
-		temp_indx.clear();
-		temp_indx.shrink_to_fit();
-
-		current_end = 2 * number_of_edges;
-
+		cudaMalloc((opacity**)&opacity_matrix, number_of_vertex* number_of_vertex * sizeof(opacity));
 	}
 
-	/***
+	/*********************************************
 	*  Converting from COO (edge list) format to CSR (adjaceny list) format
 	*  Run it after something is in COO list (from and to).
-	*/
+	*		Require:
+	*						directed = False
+	********************************************/
 	void convert_to_CSR()
 	{
 		/*
@@ -215,39 +220,56 @@ int number_of_edges;
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		thrust::merge_by_key(thrust::device, from_array.begin(), from_array.end(),
-			to_array.begin(), to_array.end(),
+		thrust::merge_by_key(thrust::device,
+			from_array, from_array + number_of_edges,
+			to_array, to_array + number_of_edges,
 			index_from, index_to,
 			temp_indx.begin(),
-			full_edge_array.begin()
+			full_edge_array
 			);
 
-		thrust::sort_by_key(thrust::device, temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
+		thrust::sort_by_key(thrust::device,
+			temp_indx.begin(), temp_indx.end(),
+			full_edge_array;
+
+			/*
+			*	Form vertex offset list
+			*/
 
 
-		/*
-		*	Form vertex offset list
-		*/
-
-
-		thrust::reduce_by_key(thrust::device, temp_indx.begin(), temp_indx.end(),
-			thrust::make_constant_iterator(1), temp_indx.begin(), full_vertex_array.begin());
+		thrust::reduce_by_key(thrust::device,
+			temp_indx.begin(), temp_indx.end(),
+			thrust::make_constant_iterator(1),
+			temp_indx.begin(),
+			full_vertex_array);
 
 		/*
 		*	Form degree vector
 		*/
 
-		thrust::copy(thrust::device, full_vertex_array.begin(), full_vertex_array.begin() + number_of_vertex, vertex_degrees.begin());
+		thrust::copy(thrust::device,
+			full_vertex_array,
+			full_vertex_array + number_of_vertex,
+			vertex_degrees);
 
-		thrust::copy(thrust::device, vertex_degrees.begin(), vertex_degrees.end(), degree_count.begin());
-		thrust::sort(thrust::device, degree_count.begin(), degree_count.end());
+		thrust::copy(thrust::device,
+			vertex_degrees, vertex_degrees + number_of_vertex,
+			degree_count);
+		thrust::sort(thrust::device,
+			degree_count, degree_count + number_of_vertex;
 		max_degree = degree_count[number_of_vertex - 1];
 
-		thrust::reduce_by_key(thrust::device, degree_count.begin(), degree_count.end(), thrust::make_constant_iterator(1),
-			thrust::make_discard_iterator(), degree_count.begin());
+		thrust::reduce_by_key(thrust::device,
+			degree_count, degree_count + number_of_vertex,
+			thrust::make_constant_iterator(1),
+			thrust::make_discard_iterator(),
+			degree_count);
 
 
-		thrust::inclusive_scan(thrust::device, full_vertex_array.begin(), full_vertex_array.begin()+number_of_vertex, full_vertex_array.begin());
+		thrust::inclusive_scan(thrust::device,
+			 full_vertex_array,
+			 full_vertex_array+number_of_vertex,
+			 full_vertex_array);
 
 		// Clean temporal arrays
 
@@ -258,11 +280,12 @@ int number_of_edges;
 		*	Transform the edge list array according to they paired edge.
 		*	Form edge list combined by vertexes
 		*/
-		domain a = thrust::raw_pointer_cast(from_array.data());
-		domain b = thrust::raw_pointer_cast(to_array.data());
-
-		thrust::transform(thrust::device, full_edge_array.begin(), full_edge_array.begin() + 2*number_of_edges, full_edge_array.begin(),
-			coo_to_csr_converter(a, b, number_of_edges));
+		
+		thrust::transform(thrust::device,
+			full_edge_array, full_edge_array + 2*number_of_edges,
+			full_edge_array,
+			coo_to_csr_converter(from_array, to_array,
+				number_of_edges));
 	}
 
 

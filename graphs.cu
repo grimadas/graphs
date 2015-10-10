@@ -162,29 +162,41 @@ void form_full_level_graph(Graph graph)
 {
 
 	// Number of edges in a nutshell TODO: change to cycle
-	vertex number_edges_to_process = graph.full_vertex_array[graph.number_of_vertex - 1]
-									 - 0;
+	vertex number_edges_to_process =
+					graph.full_vertex_array[graph.number_of_vertex - 1]
+					- 0;
 
 
 	thrust::device_vector<vertex> temp_to(graph.number_of_edges * 2);
 	thrust::device_vector<vertex> temp_from(graph.number_of_edges * 2);
 
 	/* Form temp to an temp from vector from edge arrray */
-	thrust::copy(thrust::device, graph.full_edge_array.begin(), graph.full_edge_array.begin() + number_edges_to_process, temp_to.begin());
-	thrust::copy(thrust::device, graph.full_edge_array.begin(), graph.full_edge_array.begin() + number_edges_to_process, temp_from.begin());
+	thrust::copy(thrust::device, graph.full_edge_array,
+	graph.full_edge_array + number_edges_to_process,
+	temp_to.begin());
+
+	thrust::copy(thrust::device,
+		graph.full_edge_array, graph.full_edge_array + number_edges_to_process,
+		 temp_from.begin());
+
 	// TODO Change index get previos index
-	thrust::transform(thrust::device, temp_from.begin(), temp_from.end(), temp_from.begin(), previous_el(graph.number_of_vertex + 1));
+	thrust::transform(thrust::device,
+		temp_from.begin(), temp_from.end(),
+		temp_from.begin(), previous_el(graph.number_of_vertex + 1));
 	cout << "The okey 1" << endl;
 	/* Store begining and ending */
 	thrust::copy(
 		thrust::device,
-		thrust::make_permutation_iterator(graph.full_vertex_array.begin(), temp_to.begin()),
-		thrust::make_permutation_iterator(graph.full_vertex_array.end(), temp_to.end()), temp_to.begin());
+		thrust::make_permutation_iterator(graph.full_vertex_array, temp_to.begin()),
+		thrust::make_permutation_iterator(graph.full_vertex_array, temp_to.end()),
+		temp_to.begin());
 
 	thrust::copy(
 		thrust::device,
-		thrust::make_permutation_iterator(graph.full_vertex_array.begin(), temp_from.begin()),
-		thrust::make_permutation_iterator(graph.full_vertex_array.end(), temp_from.end()), temp_from.begin());
+		thrust::make_permutation_iterator(graph.full_vertex_array,
+			temp_from.begin()),
+		thrust::make_permutation_iterator(graph.full_vertex_array,
+			temp_from.end()), temp_from.begin());
 
 		cout << "The okey 2" << endl;
 	thrust::device_vector<vertex>  process_vetxes(number_edges_to_process+1);
@@ -194,8 +206,7 @@ void form_full_level_graph(Graph graph)
 		thrust::make_counting_iterator<vertex>(0),
 		thrust::make_counting_iterator<vertex>(number_edges_to_process),
 		process_vetxes.begin(),
-		replacer(thrust::raw_pointer_cast(graph.full_vertex_array.data()), graph.number_of_vertex)
-		);
+		replacer(graph.full_vertex_array, graph.number_of_vertex));
 	/* Sum all previous results */
 	thrust::inclusive_scan(thrust::device, process_vetxes.begin(),
 									process_vetxes.end(), process_vetxes.begin());
