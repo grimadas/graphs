@@ -11,7 +11,7 @@
 struct coo_to_csr_converter
 {
   __host__ __device__
-  coo_to_csr_converter(domain _a, domain _b, int _size) : a(_a), b(_b), size(_size){}
+  coo_to_csr_converter(thrust::device_ptr<vertex> _a, thrust::device_ptr<vertex> _b, int _size) : a(_a), b(_b), size(_size){}
 
   __host__ __device__
     field operator()(field x)
@@ -29,8 +29,8 @@ struct coo_to_csr_converter
 
     }
 
-  domain a;
-  domain b;
+  thrust::device_ptr<vertex> a;
+  thrust::device_ptr<vertex> b;
   int size;
 };
 
@@ -67,7 +67,7 @@ struct  previous_el
 struct if_exists
 {
   __host__ __device__
-  if_exists(domain a, domain b, int vert) : start(a), end(b), current(vert)
+  if_exists(thrust::device_ptr<vertex> a, thrust::device_ptr<vertex> b, int vert) : start(a), end(b), current(vert)
   {
 
   }
@@ -86,8 +86,8 @@ struct if_exists
       return thrust::binary_search(thrust::device, start+from, start+to, x);
   }
 
-  domain start;
-  domain end;
+  thrust::device_ptr<vertex> start;
+  thrust::device_ptr<vertex> end;
   int current;
 };
 
@@ -99,7 +99,7 @@ struct if_exists
 struct  replacer
 {
 		__host__ __device__
-		replacer(domain c, int _size) : cidt(c), size(_size)
+		replacer(thrust::device_ptr<vertex> c, int _size) : cidt(c), size(_size)
 		{
 
 		}
@@ -116,7 +116,7 @@ struct  replacer
 		}
 
 
-		domain cidt;
+		thrust::device_ptr<vertex> cidt;
 		int size;
 };
 
@@ -132,7 +132,23 @@ struct  printer
   {
       printf("%u ", t);
   }
+
 };
+
+/****************************************************
+*   Printer functor
+*   Input:  each vertex t (opacity)
+****************************************************/
+struct  printer_opacity
+{
+
+  __host__ __device__
+    void operator()(opacity t)
+  {
+      printf("%f ", t);
+  }
+};
+
 
 /***********************************************************
 *   Transform min and max in pair of arrays
@@ -156,3 +172,29 @@ struct min_max_transform
 *
 *
 ***********************************************/
+struct unique_edge()
+{
+  __host__ __device__
+  unique_edge(thrust::device_ptr<vertex> _start_point, thrust::device_ptr<vertex> _end_point, vertex _current_vertex,int _additional_vertex_search_index, thrust::device_ptr<vertex> _full_edge_list) : cidt(c), size(_size)
+  {
+
+  }
+
+
+  __host__ __device__
+    bool operator()(vertex t)
+  {
+      // Device vector temporal array (candidate)
+      if (t == current_vertex)
+        return false;
+      if (thrust::binary_search(thrust::device, start_point, end_point, t)))
+        return false;
+      if
+  }
+
+  thrust::device_ptr<vertex> start_point;
+  thrust::device_ptr<vertex> end_point;
+  int additional_vertex_search_index;
+  vertex current_vertex;
+  thrust::device_ptr<vertex> _full_edge_list
+}

@@ -52,10 +52,10 @@
 #define _HTD cudaMemcpyHostToDevice
 
 //typedef for vector used in path reconstruction
-
-
 using namespace std;
-typedef pair<pair<int,int>,int> Piii;
+
+
+typedef std::pair<std::pair<int,int>,int> Piii;
 
 // Predefined constants
 //these can be altered on user depending
@@ -71,8 +71,8 @@ typedef pair<pair<int,int>,int> Piii;
 #define DENSITY 25
 
 /* Defined fields for graph */
-#define vertex  unsigned int
-#define edge  unsigned int
+#define vertex  int
+#define edge  int
 
 #define domain vertex*
 #define field  vertex
