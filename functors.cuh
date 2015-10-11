@@ -168,14 +168,33 @@ struct min_max_transform
   }
 };
 
+
+/***********************************************************
+*   Transform min and max in pair of arrays
+*   Input:   For each tuple<double double> retun (min, max )
+**********************************************************/
+struct counter
+{
+
+  __host__ __device__
+  vertex operator()(thrust::tuple<vertex, vertex> t)
+  {
+
+    return thrust::get<1>(t) - thrust::get<0>(t);
+  }
+};
+
+
 /***********************************************
 *
 *
 ***********************************************/
-struct unique_edge()
+struct unique_edge
 {
   __host__ __device__
-  unique_edge(thrust::device_ptr<vertex> _start_point, thrust::device_ptr<vertex> _end_point, vertex _current_vertex,int _additional_vertex_search_index, thrust::device_ptr<vertex> _full_edge_list) : cidt(c), size(_size)
+  unique_edge(thrust::device_ptr<vertex> _start_point, thrust::device_ptr<vertex> _end_point,
+              thrust::device_ptr<vertex> _vertex_edge_list, thrust::device_ptr<vertex> _full_edge_list,
+              vertex _current_vertex,vertex _additional_vertex_search_index) : cidt(c), size(_size)
   {
 
   }
@@ -187,14 +206,17 @@ struct unique_edge()
       // Device vector temporal array (candidate)
       if (t == current_vertex)
         return false;
-      if (thrust::binary_search(thrust::device, start_point, end_point, t)))
-        return false;
-      if
+      bool vertex_previously_found = thrust::binary_search(thrust::device, start_point, end_point, t);
+      if   
+    //  if (thrust::binary_search(thrust::device, start_point, end_point, t)))
+    //    return false;
+      return true;
+    //  if (additional_vertex_search_index !=0 && thrust::binary_search(thrust::device, ) )
   }
 
   thrust::device_ptr<vertex> start_point;
   thrust::device_ptr<vertex> end_point;
   int additional_vertex_search_index;
   vertex current_vertex;
-  thrust::device_ptr<vertex> _full_edge_list
-}
+  thrust::device_ptr<vertex> full_edge_list;
+};

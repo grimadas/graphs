@@ -25,15 +25,26 @@ __global__  void expander(device_ptr<vertex> previous, device_ptr<vertex> curren
 		start = full_vertex_array[current_vertex[idx - 1]];
 	}
 	int end = full_vertex_array[current_vertex[idx]];
-	
-		printf("Expander ok 0 \n");
-//	current[current_vertex[idx]] =
-	thrust::copy(thrust::device,
+
+	printf("Expander ok 0 \n");
+
+ 	current =
+	thrust::copy_if(thrust::device,
 		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_from[idx])),
 		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_to[idx])),
-		current);
+		current,
+		unique_edge());
 
+		/*
+	current_vertex_ptr =
+	thrust::copy(thrust::device,
+		thrust::make_constant_iterator(current_vertex),
+		thrust::make_constant_iterator(current_vertex) + thrust::distance(previous, current),
+		current_vertex_ptr);
+ 	previos = current;
 	printf("Expander ok 1 \n");
+	*/
+
 /*
 
 	printf("Expander ok 2 \n");
@@ -123,7 +134,20 @@ void form_full_level_graph(Graph graph)
 	/* Sum all previous results */
 		thrust::inclusive_scan(thrust::device, process_vetxes,
 									process_vetxes + number_edges_to_process, process_vetxes);
-	/**/
+	/* Number of edges to process*/
+		device_ptr<vertex>  process_number = device_malloc<vertex>(number_edges_to_process+1);
+
+		thrust::transform(
+			thrust::device,
+			make_zip_iterator(thrust::make_tuple(temp_from, temp_to)),
+			make_zip_iterator(thrust::make_tuple(temp_from + number_edges_to_process, temp_to + number_edges_to_process)),
+			process_number,
+			counter()
+			);
+
+		thrust::inclusive_scan(thrust::device, process_number,
+													 process_number + number_edges_to_process, process_number);
+
 
 	// number_edges_to_process in a nutshell ?
 	// int NUM = thrust::distance(temp_to.begin(), temp_to.end());
@@ -159,6 +183,24 @@ void form_full_level_graph(Graph graph)
 }
 
 
+__global__ void sorter(thrust::device_ptr<vertex> full_edge_array, thrust::device_ptr<vertex> full_vertex_array)
+{
+	int idx = blockIdx.x*blockDim.x + threadIdx.x;
+	int starting_point = 0;
+	if (idx != 0)
+	{
+		starting_point = full_vertex_array[idx - 1] ;
+	}
+	int ending_point = full_vertex_array[idx];
+
+	thrust::sort(thrust::device, full_edge_array+ starting_point, full_edge_array + ending_point);
+
+}
+
+void ordering_function(Graph graph)
+{
+	sorter<<<1, graph.number_of_vertex>>>(graph.full_edge_array, graph.full_vertex_array);
+}
 
 
 /*********************************
@@ -329,8 +371,9 @@ int main()
 	graph.print_coo_graph();
 	graph.convert_to_CSR();
 	graph.print_csr_graph();
-  form_full_level_graph(graph);
-		graph.print_csr_graph();
+  //form_full_level_graph(graph);
+	ordering_function(graph);
+	graph.print_csr_graph();
 	/*
 	UINT wTimerRes = 0;
 	bool init = InitMMTimer(wTimerRes);
