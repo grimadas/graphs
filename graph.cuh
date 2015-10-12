@@ -4,8 +4,8 @@
 *  author: Bulat 								*
 *  graph.h 										*
 *************************************************
-*		la - look ahed parametr
-*		L - opacity threshold (1, 2) - small value
+*		la - look ahead parametr
+*		L (L_VALUE) - opacity threshold (1, 2) - small value
 *		num_vertex - number of vetexes in a graph
 *		n(n-1)/2 combinations pairs
 *		2 variants : edge removal and remove (adding)
@@ -20,7 +20,7 @@
 *			Example:
 *				L1			L2 (same structure)
 *				| 1| 2| 4|
-*				| | | | | | |  Memory: O(L*|V| + L* 2*|E|) (what about dublication? ) two choices
+*				| | | | | | |  Memory: O(L*|V| + L* 2*|E|) (what about duplication? ) two choices
 *		  * COO format (same situation ?)
 *							   Memory: O(2*|E|)
 

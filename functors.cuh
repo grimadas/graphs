@@ -36,7 +36,7 @@ struct coo_to_csr_converter
 
 
 /***************************
-*   Equaluty functor
+*   Equality functor
 *   Returns element - 1 :
 *   x - 1
 ****************************/
@@ -62,7 +62,7 @@ struct  previous_el
 *   If element exists in start - end of current
 *   Input: domain a - starting vector
 *          domain b - ending vector
-*          int vert - cureent vertex
+*          int vert - current vertex
 ************************************************/
 struct if_exists
 {
@@ -92,7 +92,8 @@ struct if_exists
 };
 
 /***************************************************
-*   Replace with 1 if found in cidt - cidt + size
+*   Replace with 1 if found in cidt - cidt + size;
+ *   Find breaking points
 *   Input:  cidt - vector Input
 *           size - size until we search
 ****************************************************/
@@ -152,7 +153,7 @@ struct  printer_opacity
 
 /***********************************************************
 *   Transform min and max in pair of arrays
-*   Input:   For each tuple<double double> retun (min, max )
+*   Input:   For each tuple<double double> return (min, max )
 **********************************************************/
 struct min_max_transform
 {
@@ -171,7 +172,7 @@ struct min_max_transform
 
 /***********************************************************
 *   Transform min and max in pair of arrays
-*   Input:   For each tuple<double double> retun (min, max )
+*   Input:   For each tuple<double double> return (min, max )
 **********************************************************/
 struct counter
 {
@@ -186,7 +187,7 @@ struct counter
 
 
 /***********************************************
-* Check if the vertex was previouslly discovered
+* Check if the vertex was previously discovered
 * Input :
 * Result -
 ***********************************************/
