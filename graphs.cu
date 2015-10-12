@@ -15,13 +15,14 @@ __global__  void expander(
 	device_ptr<vertex> full_vertex_array, device_ptr<vertex> full_edge_array,	
 	device_ptr<vertex> position_in_array, 
 	device_ptr<vertex> expanded_array, device_ptr<vertex> from_vertex_array, 
-	int number_edges_to_process
+	int number_edges_to_process, int number_of_vertex,
+	int current_level
 	)
 {
 
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 
-	int start_point_in_edge_list = 0;
+	int start_point_in_edge_list = (current_level-1)*number_of_vertex;
 	int offset_to_put_exp_array = 0;
 	/*
 	*	For searching in full_edge_list if already discovered
@@ -29,12 +30,12 @@ __global__  void expander(
 	if (idx != 0)
 	{
 		if (current_vertex[idx]!= 0)
-			start_point_in_edge_list = full_vertex_array[current_vertex[idx]-1];
+			start_point_in_edge_list = full_vertex_array[(current_level-1)*number_of_vertex+current_vertex[idx]-1];
 		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
 	}
-	int end_point_in_edge_list = full_vertex_array[current_vertex[idx]];
+	int end_point_in_edge_list = full_vertex_array[(current_level-1)*number_of_vertex +  current_vertex[idx]];
 	// DEbug print TODO: remove
-	printf("Expander ok 0 \n");
+	//printf("Expander ok 0 \n");
 	/*
 	*	Copy to expanded array if the edge is unique (was not discovered previouslly, not equal to vertex itself)
 	*	Result:			1 2 1 .... (expanded edges)
@@ -44,8 +45,8 @@ __global__  void expander(
 		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_from[idx])),
 		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_to[idx])),
 		expanded_array + offset_to_put_exp_array,
-		unique_edge(full_edge_array + start_point_in_edge_list,full_edge_array + end_point_in_edge_list,
-					current_vertex[idx]));
+		unique_edge(full_vertex_array, full_edge_array, current_vertex[idx],
+		number_of_vertex, current_level));
 
 	int planed_size = temp_to[idx] - temp_from[idx];
 	int real_size = thrust::distance(expanded_array + offset_to_put_exp_array, current_position);
@@ -71,7 +72,7 @@ __global__  void expander(
 				position_in_array + number_edges_to_process, position_in_array, minus_value(planed_size - real_size));
 		}
 		
-	printf("Expander ok 6 \n");
+	
 }
 
 
@@ -198,16 +199,15 @@ void form_full_level_graph(Graph graph)
 	/* Store begining and ending */
 	thrust::copy(
 		thrust::device,
-		thrust::make_permutation_iterator(graph.full_vertex_array, temp_to),
-		thrust::make_permutation_iterator(graph.full_vertex_array, temp_to+ number_edges_to_process),
+		thrust::make_permutation_iterator(graph.full_vertex_array + (current_level-1) * graph.number_of_vertex, temp_to),
+		thrust::make_permutation_iterator(graph.full_vertex_array + (current_level-1) * graph.number_of_vertex, temp_to + number_edges_to_process),
 		temp_to);
 
 	thrust::copy(
 		thrust::device,
-		thrust::make_permutation_iterator(graph.full_vertex_array,
-			temp_from),
-		thrust::make_permutation_iterator(graph.full_vertex_array,
-			temp_from + number_edges_to_process), temp_from);
+		thrust::make_permutation_iterator(graph.full_vertex_array + (current_level - 1) * graph.number_of_vertex, temp_from),
+		thrust::make_permutation_iterator(graph.full_vertex_array + (current_level - 1) * graph.number_of_vertex, 
+		temp_from + number_edges_to_process), temp_from);
 
 	/*
 	*	Array of vertex, from which we will expand. Proces vertex
@@ -216,10 +216,10 @@ void form_full_level_graph(Graph graph)
 	/* Find all breaking points. 0 0 1 0 0 0 1 ... */
 	thrust::transform(
 		thrust::device,
-		thrust::make_counting_iterator<vertex>(0),
-		thrust::make_counting_iterator<vertex>(number_edges_to_process),
+		thrust::make_counting_iterator<vertex>(0 + added_offset),
+		thrust::make_counting_iterator<vertex>(number_edges_to_process + added_offset),
 		process_vetxes,
-		replacer(graph.full_vertex_array, graph.number_of_vertex));
+		replacer(graph.full_vertex_array + (current_level-1)* graph.number_of_vertex, graph.number_of_vertex));
 	/*
 		Sum all previous results (sum of breaking points).
 		Result: 0 0 1 1 1 1 2 2 2 (vertex array)
@@ -259,22 +259,31 @@ void form_full_level_graph(Graph graph)
 	int prev_max_position = position_in_array[number_edges_to_process - 1];
 	//  Expand array on one level
 	//	Can contain non unique values
-	expander<<< 1, number_edges_to_process >>>(
+	
+	int grid_size = number_edges_to_process;
+	
+	expander<<< 1, grid_size >>>(
 		process_vetxes, temp_from, temp_to,
 		graph.full_vertex_array, graph.full_edge_array,
 		position_in_array, 
 		expanded_array, from_vertex_array,
-		number_edges_to_process
+		number_edges_to_process,
+		graph.number_of_vertex,
+		current_level
 		);
 	//cudaThreadSynchronize();
 	cudaDeviceSynchronize();
 	cout << endl << "Expander finished work" << endl;
+	device_free(temp_from);
+	device_free(temp_to);
+	device_free(process_vetxes);
+
 	/*
 	*	Remove empty, non used data
 	*/
 	thrust::remove(thrust::device, expanded_array, expanded_array + prev_max_position, -1);
 	thrust::remove(thrust::device, from_vertex_array, from_vertex_array + prev_max_position, -1);
-	cout << endl << "Removing ok" << endl;
+	
 	/*
 	*	Form vertex offset list
 	*/
@@ -291,17 +300,20 @@ void form_full_level_graph(Graph graph)
 
 
 	thrust::device_ptr<vertex> vertex_ending_offsets = thrust::device_malloc<vertex>(graph.number_of_vertex);
-	
-	cout << "OMG it works untill now !!" << endl;
+	int * a = new int[30];
+	thrust::copy(expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], a);
+	for (int i = 0; i < 20; i++)
+	{
+		cout << a[i] << " ";
+	}
+	cout << endl;
 
-
-	
 	unifier <<<1, graph.number_of_vertex >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets);
 	cudaDeviceSynchronize();
 	cout << " I think it works" << endl;
 	
 	thrust::device_ptr<vertex> position_in_edge_list = thrust::device_malloc<vertex>(graph.number_of_vertex);
-	cout << "Yep here we go" << endl;
+	
 	
 	thrust::copy(thrust::device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex, 
 		graph.full_vertex_array + current_level * graph.number_of_vertex);
@@ -311,21 +323,11 @@ void form_full_level_graph(Graph graph)
 	thrust::inclusive_scan(thrust::device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 		graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 	
-
-	int* a = new int[100];
-	thrust::copy(graph.full_vertex_array, graph.full_vertex_array + 14, a);
-
-	for (int i = 0; i < 14; i++)
-	{
-		cout << a[i] << " ";
-	}
-	cout << endl;
-
-
 	
 	cout << "OMG o_______O !!" << endl;
+	grid_size = graph.number_of_vertex;
 
-	edge_copier<<<1, graph.number_of_vertex>>>(
+	edge_copier<<<1, grid_size>>>(
 		expanded_array,
 		positions_vertex_current_level,
 		vertex_ending_offsets,

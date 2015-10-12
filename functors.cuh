@@ -187,15 +187,27 @@ struct counter
 
 
 /***********************************************
-* Check if the vertex was previously discovered
-* Input :
-* Result -
+* Check if the vertex was previously discovered by current_vertex in each level until current_level
+* Input :  thrust::device_ptr<vertex> _full_vertex_array,
+           thrust::device_ptr<vertex> _full_edge_array,
+            vertex _current_vertex,
+            int _number_of_vertex,
+            int _current_level,
+* Result : bool true - if unique value
 ***********************************************/
 struct unique_edge
 {
   __host__ __device__
-  unique_edge(thrust::device_ptr<vertex> _start_point, thrust::device_ptr<vertex> _end_point,
-                  vertex _current_vertex) : start_point(_start_point), end_point(_end_point), current_vertex(_current_vertex)
+  unique_edge(
+    thrust::device_ptr<vertex> _full_vertex_array,
+    thrust::device_ptr<vertex> _full_edge_array,
+    vertex _current_vertex,
+    int _number_of_vertex,
+    int _current_level):   full_vertex_array(_full_vertex_array),
+         full_edge_array(_full_edge_array),
+         current_vertex(_current_vertex),
+         number_of_vertex(_number_of_vertex),
+         current_level(_current_level)
   {
 
   }
@@ -207,15 +219,31 @@ struct unique_edge
       // Device vector temporal array (candidate)
       if (t == current_vertex)
         return false;
-      bool vertex_previously_found = thrust::binary_search(thrust::device, start_point, end_point, t);
-      if   (vertex_previously_found)
-        return false;
+
+      for (int i= 0; i < current_level; i++)
+      {
+        int starting = i*number_of_vertex;
+        if (current_vertex != 0)
+        {
+          starting = full_vertex_array[i*number_of_vertex + current_vertex - 1];
+        }
+        int ending = full_vertex_array[i*number_of_vertex + current_vertex];
+
+        bool vertex_previously_found = thrust::binary_search(thrust::device, full_edge_array + starting, full_edge_array + ending, t);
+        if  (vertex_previously_found)
+          return false;
+      }
+
+
       return true;
     }
 
-  thrust::device_ptr<vertex> start_point;
-  thrust::device_ptr<vertex> end_point;
+  thrust::device_ptr<vertex> full_vertex_array;
+  thrust::device_ptr<vertex> full_edge_array;
   vertex current_vertex;
+  int number_of_vertex;
+  int current_level;
+
 };
 
 /**************************************************************
