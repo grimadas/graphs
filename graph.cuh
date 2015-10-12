@@ -240,10 +240,9 @@ bool directed = false;
 			temp_indx, temp_indx + 2*number_of_edges,
 			full_edge_array);
 
-			/*
-			*	Form vertex offset list
-			*/
-
+		/*
+		*	Form vertex offset list
+		*/
 
 		thrust::reduce_by_key(thrust::device,
 			temp_indx, temp_indx + 2*number_of_edges,

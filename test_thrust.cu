@@ -128,14 +128,15 @@ int main()
     device_ptr<int> current_begin = current;
     device_ptr<int> current_begin2 = current2;
     device_ptr<int> previos = current;
+    int prev_position = position[4];
     someting<<<1,5>>>(previos, current,
             full_edge_array, temp_from,
             temp_to, current2,
                       vertex_array, position);
 
     thrust::copy(position, position + 5, _position);
-    thrust::remove(thrust::device, current, current + 20, -1);
-    thrust::remove(thrust::device, current2, current2 + 20, -1);
+    thrust::remove(thrust::device, current, current + prev_position, -1);
+    thrust::remove(thrust::device, current2, current2 + prev_position, -1);
 
     for (int i=0; i< 5; i++)
     {
