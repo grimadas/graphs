@@ -11,30 +11,54 @@
 
 
 
-__global__  void expander(device_ptr<vertex> previous, device_ptr<vertex> current,
+__global__  void expander(device_ptr<vertex> expanded_array,
 	device_ptr<vertex> current_vertex, device_ptr<vertex> temp_from, device_ptr<vertex> temp_to,
-	device_ptr<vertex> full_vertex_array, device_ptr<vertex> full_edge_array,	int number_of_vertex
+	device_ptr<vertex> full_vertex_array, device_ptr<vertex> full_edge_array,	int number_of_vertex,
+	device_ptr<vertex> position_in_array, int number_edges_to_process
 	)
 {
 
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 
-	int start = 0;
+	int start_point_in_edge_list = 0;
+	int offset_to_put_exp_array = 0;
+	/*
+	*	For searching in full_edge_list if already discovered
+	*/
 	if (idx != 0)
 	{
-		start = full_vertex_array[current_vertex[idx - 1]];
+		start_point_in_edge_list = full_vertex_array[current_vertex[idx - 1]];
+		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
 	}
-	int end = full_vertex_array[current_vertex[idx]];
-
+	int end_point_in_edge_list = full_vertex_array[current_vertex[idx]];
+	// DEbug print TODO: remove
 	printf("Expander ok 0 \n");
-
- 	current =
-	thrust::copy_if(thrust::device,
+	/*
+	*	Copy to expanded array if the edge is unique (was not discovered previouslly, not equal to vertex itself)
+	*
+	*/
+	thrust::device_ptr<vertex> current_position =
+ 	thrust::copy_if(thrust::device,
 		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_from[idx])),
 		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_to[idx])),
-		current,
-		unique_edge());
+		expanded_array + offset_to_put_exp_array,
+		unique_edge(full_edge_array + start_point_in_edge_list,full_edge_array + end_point_in_edge_list,
+					current_vertex[idx]));
 
+	int planed_size = temp_to[idx] - temp_from[idx];
+	int real_size = thrust::distance(expanded_array + offset_to_put_exp_array, current_position);
+
+	if (planed_size != real_size)
+		if (idx != 0)
+	{
+		thrust::transform(thrust::device, position_in_array + idx - 1,
+				position_in_array + number_edges_to_process, position_in_array + idx -1, minus_value(planed_size - real_size));
+	}
+		else
+		{
+			thrust::transform(thrust::device, position_in_array,
+				position_in_array + number_edges_to_process, position_in_array, minus_value(planed_size - real_size));
+		}
 		/*
 	current_vertex_ptr =
 	thrust::copy(thrust::device,
@@ -124,38 +148,48 @@ void form_full_level_graph(Graph graph)
 
 
 	device_ptr<vertex>  process_vetxes = device_malloc<vertex>(number_edges_to_process+1);
-	/* Find all breaking points */
+	/* Find all breaking points. 0 0 1 0 0 0 1 ... */
 	thrust::transform(
 		thrust::device,
 		thrust::make_counting_iterator<vertex>(0),
 		thrust::make_counting_iterator<vertex>(number_edges_to_process),
 		process_vetxes,
 		replacer(graph.full_vertex_array, graph.number_of_vertex));
-	/* Sum all previous results */
+	/*
+		Sum all previous results (sum of breaking points).
+		Result: 0 0 1 1 1 1 2 2 2 (vertex array)
+	*/
 		thrust::inclusive_scan(thrust::device, process_vetxes,
 									process_vetxes + number_edges_to_process, process_vetxes);
-	/* Number of edges to process*/
+	/*
+		Number of edges to process
+		Result <- Temp_TO - Temp_FROM
+	*/
 		device_ptr<vertex>  process_number = device_malloc<vertex>(number_edges_to_process+1);
 
 		thrust::transform(
 			thrust::device,
 			make_zip_iterator(thrust::make_tuple(temp_from, temp_to)),
-			make_zip_iterator(thrust::make_tuple(temp_from + number_edges_to_process, temp_to + number_edges_to_process)),
+			make_zip_iterator(thrust::make_tuple(temp_from + number_edges_to_process,
+												temp_to + number_edges_to_process)),
 			process_number,
-			counter()
-			);
-
-		thrust::inclusive_scan(thrust::device, process_number,
-													 process_number + number_edges_to_process, process_number);
+			counter());
+	/*
+		Forming offset array from process number
+		2 4 4 => 2 6 10
+	*/
+	thrust::inclusive_scan(thrust::device, process_number,
+					 		    process_number + number_edges_to_process,
+							    process_number);
 
 
 	// number_edges_to_process in a nutshell ?
 	// int NUM = thrust::distance(temp_to.begin(), temp_to.end());
 
-	/* 	Graph init. */
 
 
-	device_ptr<vertex> tempo_vector =  device_malloc<vertex>(graph.number_of_vertex * graph.number_of_vertex);
+	// process number contains the maximum needed memory to store if all vertexes are unique
+	device_ptr<vertex> tempo_vector =  device_malloc<vertex>(process_number[number_edges_to_process - 1]);
 	device_ptr<vertex> previous = tempo_vector;
 	device_ptr<vertex> current = previous;
 
@@ -166,7 +200,7 @@ void form_full_level_graph(Graph graph)
 //	domain _full_edge = graph.full_edge_array;
 //	domain _vertex_data = thrust::raw_pointer_cast(process_vetxes.data());
 
-	expander <<<1, 2 >>> (previous, current, process_vetxes , temp_from, temp_to,
+	expander <<<1, number_edges_to_process>>> (previous, current, process_vetxes , temp_from, temp_to,
 		graph.full_vertex_array, graph.full_edge_array, graph.number_of_vertex);
 
 			cout << "The okey 6" << endl;

@@ -63,11 +63,11 @@ int number_of_edges;
 
 bool directed = false;
 
-	/************************************
+	/**********************************************
 	*		Read graph in Edge list format (COO)
 	*		input:
 	*					string file_name
-	**************************************/
+	***********************************************/
 	void read_COO_format(string file_name)
 	{
 			ifstream myfile;
@@ -134,12 +134,12 @@ bool directed = false;
 		delete a,b,c,d;
 	}
 
-	/**********************************
+	/**********************************************
 	*	Print opacity matrix ON_HOST
 	*	Require:
 	*						opacity_matrix != NULL
 	*
-	*********************************/
+	***********************************************/
 	void print_opacity_matrix()
 	{
 		printf("\n Opacity : ");
@@ -148,11 +148,11 @@ bool directed = false;
 	}
 
 
-	/**************************************
+	/********************************************
 	*	Print graph in (one layer, initial state)
 	* COO format (edge list) ON_HOST
 	*
-	*************************************/
+	*********************************************/
 	void print_coo_graph()
 	{
 
@@ -164,9 +164,9 @@ bool directed = false;
 
 	}
 
-	/*******************************************
+	/****************************************************
 	* 	Reading test graph presented in the paper "L-opacity"
-	********************************************/
+	*******************************************************/
 	void init_test_graph()
 	{
 		// COO format
@@ -207,12 +207,12 @@ bool directed = false;
 		opacity_matrix = device_malloc<opacity>(number_of_vertex*number_of_vertex);
 	}
 
-	/*********************************************
+	/********************************************************************
 	*  Converting from COO (edge list) format to CSR (adjaceny list) format
 	*  Run it after something is in COO list (from and to).
 	*		Require:
 	*						directed = False
-	********************************************/
+	********************************************************************/
 	void convert_to_CSR()
 	{
 		/*
@@ -253,43 +253,54 @@ bool directed = false;
 
 
 		/*
-		*	Form degree vector
+		*	Form degree vector. 
+		*	Each vertex has degree
+		*	Total size: number_of_vertex
 		*/
 
 		thrust::copy(thrust::device,
 			full_vertex_array,
 			full_vertex_array + number_of_vertex,
 			vertex_degrees);
-
-
+		/*
+		*	Copy data to degree_count array
+		*/
 		thrust::copy(thrust::device,
 			vertex_degrees, vertex_degrees + number_of_vertex,
 			degree_count);
-
+		/*
+		*	
+		*/
 		thrust::sort(thrust::device,
-			degree_count, degree_count + number_of_vertex);
-		max_degree = degree_count[number_of_vertex - 1];
+			degree_count, degree_count + number_of_vertex); 
 
+		max_degree = degree_count[number_of_vertex - 1];
+		/*
+		*	Form degree count array. 
+		*	Each vertex degree has ammount (frequency in graph)
+		*	Result: Total size 0.. max_degree
+		*/
 		thrust::reduce_by_key(thrust::device,
 			degree_count, degree_count + number_of_vertex,
 			thrust::make_constant_iterator(1),
 			thrust::make_discard_iterator(),
 			degree_count);
-
+		/*
+		*	Form vertex offset array
+		*	Result: vertex offser array => 2 4 10 ... 
+		*/
 		thrust::inclusive_scan(thrust::device,
 			 full_vertex_array,
 			 full_vertex_array+number_of_vertex,
 			 full_vertex_array);
 
-		// Clean temporal arrays
+		// Clean temporal array
 		device_free(temp_indx);
 
 		/*
 		*	Transform the edge list array according to they paired edge.
 		*	Form edge list combined by vertexes
 		*/
-
-
 
 		thrust::transform(thrust::device,
 			full_edge_array, full_edge_array + 2*number_of_edges,

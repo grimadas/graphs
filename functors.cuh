@@ -186,15 +186,15 @@ struct counter
 
 
 /***********************************************
-*
-*
+* Check if the vertex was previouslly discovered
+* Input :
+* Result -
 ***********************************************/
 struct unique_edge
 {
   __host__ __device__
   unique_edge(thrust::device_ptr<vertex> _start_point, thrust::device_ptr<vertex> _end_point,
-              thrust::device_ptr<vertex> _vertex_edge_list, thrust::device_ptr<vertex> _full_edge_list,
-              vertex _current_vertex,vertex _additional_vertex_search_index) : cidt(c), size(_size)
+                  vertex _current_vertex) : start_point(_start_point), end_point(_end_point), current_vertex(_current_vertex)
   {
 
   }
@@ -207,16 +207,32 @@ struct unique_edge
       if (t == current_vertex)
         return false;
       bool vertex_previously_found = thrust::binary_search(thrust::device, start_point, end_point, t);
-      if   
-    //  if (thrust::binary_search(thrust::device, start_point, end_point, t)))
-    //    return false;
+      if   (vertex_previously_found)
+        return false;
       return true;
-    //  if (additional_vertex_search_index !=0 && thrust::binary_search(thrust::device, ) )
-  }
+    }
 
   thrust::device_ptr<vertex> start_point;
   thrust::device_ptr<vertex> end_point;
-  int additional_vertex_search_index;
   vertex current_vertex;
-  thrust::device_ptr<vertex> full_edge_list;
+};
+
+/**************************************************************
+*     Minus data
+*    returns current vertex - remove_value
+****************************************************************/
+struct minus_value
+{
+  __host__ __device__
+  minus_value(int i): remove_value(i)
+  {
+
+  }
+  __host__ __device__
+    vertex operator()(vertex t)
+  {
+      // Device vector temporal array (candidate)
+      return t - remove_value;
+  }
+  int remove_value;
 };

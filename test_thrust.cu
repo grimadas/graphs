@@ -42,6 +42,7 @@ struct cleanup
 
 
 
+
 __global__ void someting(device_ptr<int> previos,  device_ptr<int> current,
                         device_ptr<int> full_edge_array, device_ptr<int> temp_from, device_ptr<int> temp_to,  device_ptr<int> current2,
                         device_ptr<int> vertex_array, device_ptr<int> position
@@ -60,27 +61,34 @@ __global__ void someting(device_ptr<int> previos,  device_ptr<int> current,
       current + offset,
       unique_edge());
 
+      //cur_pos =
+      //thrust::remove(thrust::device, current + offset, cur_pos, -1);
 
-      thrust::remove(thrust::device, current + offset, cur_pos, -1);
       int planed_size = temp_to[idx] - temp_from[idx];
       int real_size = thrust::distance(current+offset, cur_pos);
-      // reformat offset array
+      int starting = vertex_array[idx];
+      thrust::copy(thrust::device,
+      thrust::make_constant_iterator(starting),
+      thrust::make_constant_iterator(starting) + real_size,
+      current2 + offset);
+
+            // reformat offset array
       if (planed_size != real_size)
         if (idx!=0)
         {thrust::transform(thrust::device, position + idx-1, position + 5, position + idx -1, cleanup(planed_size - real_size));}
         else
         {thrust::transform(thrust::device, position, position + 5, position, cleanup(planed_size - real_size));}
+          __syncthreads();
+        offset = 0;
         if (idx != 0)
         {
           offset = position[idx - 1];
         }
-      int starting = vertex_array[idx];
-      cur_pos =
-      thrust::copy(thrust::device,
-      thrust::make_constant_iterator(starting),
-      thrust::make_constant_iterator(starting) + real_size,
-      current2 + offset);
-      thrust::remove(thrust::device, current2 + offset, cur_pos, -1);
+
+
+
+
+
 }
 
 int main()
@@ -125,20 +133,24 @@ int main()
             temp_to, current2,
                       vertex_array, position);
 
+    thrust::copy(position, position + 5, _position);
+    thrust::remove(thrust::device, current, current + 20, -1);
+    thrust::remove(thrust::device, current2, current2 + 20, -1);
+
     for (int i=0; i< 5; i++)
     {
       full[i] = -1;
     }
     //thrust::remove(current_begin, current_begin + 40, -1);
-    thrust::copy(current_begin2, current_begin2 + 40, full2);
-    for (int i=0; i< 40; i++)
+    thrust::copy(current_begin2, current_begin2 + _position[4], full2);
+    for (int i=0; i< _position[4]; i++)
     {
       cout << full2[i] << " ";
     }
     cout << endl;
 
-    thrust::copy(current_begin, current_begin + 40, full2);
-    for (int i=0; i< 40; i++)
+    thrust::copy(current_begin, current_begin + _position[4], full2);
+    for (int i=0; i< _position[4]; i++)
     {
       cout << full2[i] << " ";
     }
