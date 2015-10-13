@@ -34,6 +34,7 @@ __global__  void expander(
 		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
 	}
 	int end_point_in_edge_list = full_vertex_array[(current_level-1)*number_of_vertex +  current_vertex[idx]];
+	//printf("vertex %d start %d end %d \n", current_vertex[idx], start_point_in_edge_list, end_point_in_edge_list);
 	// DEbug print TODO: remove
 	//printf("Expander ok 0 \n");
 	/*
@@ -115,16 +116,20 @@ __global__ void unifier(
 		
 		}
 		int end_point = positions_vertex_current_level[idx];
-
-		printf("So far so good \n");
-		thrust::sort(thrust::device, expanded_array + start_point, expanded_array + end_point);
-		printf("Boom fuck you sort \n");
-		// remove dublicates
-		thrust::device_ptr<vertex> current_position =
-			thrust::unique(thrust::device, expanded_array + start_point, expanded_array + end_point);
-		printf("Unique fuck you sort \n");
-		vertex real_size = thrust::distance(expanded_array + start_point, current_position);
-		current_ending_offset[idx] = real_size;
+		if (end_point > start_point)
+		{
+			thrust::sort(thrust::device, expanded_array + start_point, expanded_array + end_point);
+			// remove dublicates
+			thrust::device_ptr<vertex> current_position =
+				thrust::unique(thrust::device, expanded_array + start_point, expanded_array + end_point);
+			vertex real_size = thrust::distance(expanded_array + start_point, current_position);
+			current_ending_offset[idx] = real_size;
+		}
+		else
+		{
+			current_ending_offset[idx] = 0; 
+		}
+		
 		
 	}
 
@@ -519,15 +524,14 @@ int main()
 	graph.convert_to_CSR();
 	graph.print_csr_graph();
 	ordering_function(graph);
-	form_full_level_graph(graph);
+
 	
-	graph.print_csr_graph();
-	/*
+	
 	UINT wTimerRes = 0;
 	bool init = InitMMTimer(wTimerRes);
 	DWORD startTime = timeGetTime();
 
-	//test_funct<<<1, 1>>>(thrust::raw_pointer_cast(graph.full_vertex_array.data()), 4);
+		form_full_level_graph(graph);
 
 	// BFS
 	//graph.single_bfs(2);
@@ -541,7 +545,8 @@ int main()
 	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
 	DestroyMMTimer(wTimerRes, init);
 
-	*/
+	graph.print_csr_graph();
+
 
 	return 0;
 }

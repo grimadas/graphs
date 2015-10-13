@@ -80,7 +80,7 @@ int main(){
 	free(D_Gpath);
 	//}
 	//	*/
-	
+
 	cin >> ch;
 	return 0;
 }
