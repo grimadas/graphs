@@ -9,7 +9,13 @@
 #include "headers.h"
 
 
-
+/*
+*	Expand array according to it's from and to values
+*	Input : device_ptr<vertex> expanded_array
+*			device_ptr<vertex> position_current_level
+*			device_ptr<vertex> current_ending_offset
+*	Out: 	sorted and normalized expanded_array
+*/
 __global__  void expander(
 	device_ptr<vertex> current_vertex, device_ptr<vertex> temp_from, device_ptr<vertex> temp_to,
 	device_ptr<vertex> full_vertex_array, device_ptr<vertex> full_edge_array,	
@@ -34,11 +40,11 @@ __global__  void expander(
 		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
 	}
 	int end_point_in_edge_list = full_vertex_array[(current_level-1)*number_of_vertex +  current_vertex[idx]];
-	//printf("vertex %d start %d end %d \n", current_vertex[idx], start_point_in_edge_list, end_point_in_edge_list);
+	printf("vertex %d from  %d until %d \n", current_vertex[idx], temp_from[idx], temp_until[idx]);
 	// DEbug print TODO: remove
 	//printf("Expander ok 0 \n");
 	/*
-	*	Copy to expanded array if the edge is unique (was not discovered previouslly, not equal to vertex itself)
+	*	Copy to expanded array if the edge is unique (was not discovered previously, not equal to vertex itself)
 	*	Result:			1 2 1 .... (expanded edges)
 	*/
 	thrust::device_ptr<vertex> current_position =
@@ -78,8 +84,10 @@ __global__  void expander(
 
 
 /*
-*	
-*
+*	Sorting function for each vertex offset position. Initial sort (not for L > 1)
+*	Input: device_ptr full_edge_array
+*		   device_ptr full_vertex_array
+*	Out : Sorted full_edge_array
 */
 __global__ void sorter(thrust::device_ptr<vertex> full_edge_array,
 						thrust::device_ptr<vertex> full_vertex_array)
@@ -95,17 +103,18 @@ __global__ void sorter(thrust::device_ptr<vertex> full_edge_array,
 	thrust::sort(thrust::device, full_edge_array + starting_point, full_edge_array + ending_point);
 	
 }
+
 /*
-*
-*
+*	Sort and remove duplicates in edge_array
+*	Input : device_ptr<vertex> expanded_array
+*			device_ptr<vertex> position_current_level
+*			device_ptr<vertex> current_ending_offset
+*	Out: 	sorted and normalized expanded_array
 */
-
-
 __global__ void unifier(
 	device_ptr<vertex> expanded_array,
 	device_ptr<vertex> positions_vertex_current_level,
-	device_ptr<vertex> current_ending_offset
-	)
+	device_ptr<vertex> current_ending_offset)
 	{
 		int idx = blockIdx.x*blockDim.x + threadIdx.x;
 		int start_point = 0;
