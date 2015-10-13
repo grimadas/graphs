@@ -4,7 +4,7 @@ int main(){
 	char ch;
 	srand(time(NULL));
 
-	const int N =  7;
+	const int N =  9;
 	const int NumBytes = N*N*sizeof(int);
 	//host allocations to create Adjancency matrix and result matrices with path matrices
 	int *OrigGraph = (int *)malloc(NumBytes);//will be original Adjancency matrix, will NOT be changed
@@ -24,9 +24,7 @@ int main(){
 	cout << "Reading file with graph: \n ";
 	_read_from_file(H_G, N);
 	cout << "Assigning initial paths ";
-	UINT wTimerRes = 0;
-	bool init = InitMMTimer(wTimerRes);
-	DWORD startTime = timeGetTime();
+
 
 	cout << "Graph " << endl;
 	for (int i = 0; i<N; i++){//copy for use in computation
@@ -40,14 +38,16 @@ int main(){
 		//	cout << endl;
 	}
 
-
+	UINT wTimerRes = 0;
+	bool init = InitMMTimer(wTimerRes);
+	DWORD startTime = timeGetTime();
 	cout << "\nFloyd-Warshall on GPU underway:\n";
 	_Wake_GPU << <1, BLOCK_SIZE >> >(32);
 
 	//call host function which will copy all info to device and run CUDA kernels
 
-
-	_GPU_Floyd(H_G, H_Gpath, N);
+	int L = 10;
+	_GPU_Floyd(H_G, H_Gpath, N, L);
 
 	unsigned int endTime = timeGetTime();
 	unsigned int gpu_time = unsigned int(endTime - startTime);

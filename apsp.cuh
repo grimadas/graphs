@@ -76,7 +76,7 @@ __global__ void _Wake_GPU(int reps){
 	if(idx>=reps)return;
 }
 
-__global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N){//G will be the adjacency matrix, P will be path matrix
+__global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N, int L_VALUE){//G will be the adjacency matrix, P will be path matrix
 	int col=blockIdx.x*blockDim.x + threadIdx.x;
 	if(col>=N)return;
 	int idx=N*blockIdx.y+col;
@@ -85,9 +85,9 @@ __global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N){//G will be the a
 	if(threadIdx.x==0)
 		best=G[N*blockIdx.y+k];
 	__syncthreads();
-	if(best==INF || best > 10)return;
+	if(best==INF || best > L_VALUE)return;
 	int tmp_b=G[k*N+col];
-	if(tmp_b==INF || tmp_b > 10)return;
+	if(tmp_b==INF || tmp_b > L_VALUE)return;
 //	if (cur > 1)
 //		return;
 	int cur = best + tmp_b;
@@ -96,7 +96,7 @@ __global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N){//G will be the a
 		P[idx]=k;
 	}
 }
-void _GPU_Floyd(int *H_G, int *H_Gpath, const int N){
+void _GPU_Floyd(int *H_G, int *H_Gpath, const int N, int L){
 	//allocate device memory and copy graph data from host
 	int *dG,*dP;
 	int numBytes=N*N*sizeof(int);
@@ -114,7 +114,7 @@ void _GPU_Floyd(int *H_G, int *H_Gpath, const int N){
 
 	for(int k=0;k<N;k++){//main loop
 
-		_GPU_Floyd_kernel<<<dimGrid,BLOCK_SIZE>>>(k,dG,dP,N);
+		_GPU_Floyd_kernel<<<dimGrid,BLOCK_SIZE>>>(k,dG,dP,N, L);
 		err = cudaThreadSynchronize();
 		if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}
 	}

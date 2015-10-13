@@ -222,13 +222,15 @@ struct unique_edge
 
       for (int i= 0; i < current_level; i++)
       {
-        int starting = i*number_of_vertex;
-        if (current_vertex != 0)
+        int starting = 0;
+        if (current_vertex != 0 || i!=0)
         {
           starting = full_vertex_array[i*number_of_vertex + current_vertex - 1];
         }
-        int ending = full_vertex_array[i*number_of_vertex + current_vertex];
 
+
+        int ending = full_vertex_array[i*number_of_vertex + current_vertex];
+        printf("I will search among %d %d \n", starting, ending);
         bool vertex_previously_found = thrust::binary_search(thrust::device, full_edge_array + starting, full_edge_array + ending, t);
         if  (vertex_previously_found)
           return false;
@@ -261,7 +263,29 @@ struct minus_value
     vertex operator()(vertex t)
   {
       // Device vector temporal array (candidate)
-      return t - remove_value;
+      if (remove_value > 0)
+        return t - remove_value;
+      else
+        return t;
   }
   int remove_value;
+};
+
+/**************************************************************
+*     Zero elimenter
+*    returns replace_value against zero
+****************************************************************/
+struct add_offset
+{
+  __host__ __device__
+  add_offset(vertex to_add): value_to_add(to_add)  {  }
+
+  __host__ __device__
+    vertex operator()(vertex t)
+  {
+      // Device vector temporal array (candidate)
+      return t + value_to_add;
+  }
+  vertex value_to_add;
+
 };

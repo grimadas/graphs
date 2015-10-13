@@ -38,7 +38,7 @@ public:
 device_ptr<vertex> full_vertex_array;
 device_ptr<vertex> full_edge_array;
 
-int L_VALUE = 3;
+int L_VALUE = 4;
 
 // Current
 // domain vertex_current_end; We don't need this ?
@@ -252,7 +252,7 @@ bool directed = false;
 
 
 		/*
-		*	Form degree vector. 
+		*	Form degree vector.
 		*	Each vertex has degree
 		*	Total size: number_of_vertex
 		*/
@@ -268,14 +268,14 @@ bool directed = false;
 			vertex_degrees, vertex_degrees + number_of_vertex,
 			degree_count);
 		/*
-		*	
+		*
 		*/
 		thrust::sort(thrust::device,
-			degree_count, degree_count + number_of_vertex); 
+			degree_count, degree_count + number_of_vertex);
 
 		max_degree = degree_count[number_of_vertex - 1];
 		/*
-		*	Form degree count array. 
+		*	Form degree count array.
 		*	Each vertex degree has ammount (frequency in graph)
 		*	Result: Total size 0.. max_degree
 		*/
@@ -286,7 +286,7 @@ bool directed = false;
 			degree_count);
 		/*
 		*	Form vertex offset array
-		*	Result: vertex offser array => 2 4 10 ... 
+		*	Result: vertex offser array => 2 4 10 ...
 		*/
 		thrust::inclusive_scan(thrust::device,
 			 full_vertex_array,
