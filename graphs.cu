@@ -35,8 +35,6 @@ __global__  void expander(
 	{
 		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
 	}
-	// DEbug print TODO: remove
-	//printf("Expander ok 0 \n");
 	/*
 	*	Copy to expanded array if the edge is unique (was not discovered previously, not equal to vertex itself)
 	*	Result:			1 2 1 .... (expanded edges)
@@ -52,6 +50,8 @@ __global__  void expander(
 	int planed_size = temp_to[idx] - temp_from[idx];
 	int real_size = thrust::distance(expanded_array + offset_to_put_exp_array, current_position);
 	int starting = current_vertex[idx];
+	// TODO : check real size value
+	printf("current vertex %d with real size %d \n", starting, real_size);
 	/*
 	*	Expand the current processing vertex to the size *real size*;
 	*			Result : 0 0 0 1 1 ... (the vertex from expanded)
@@ -64,8 +64,9 @@ __global__  void expander(
 	if (planed_size != real_size)
 		if (idx != 0)
 	{
-		thrust::transform(thrust::device, position_in_array + idx - 1,
-				position_in_array + number_edges_to_process, position_in_array + idx -1, minus_value(planed_size - real_size));
+			thrust::transform(thrust::device, position_in_array + idx - 1,
+			position_in_array + number_edges_to_process,
+			position_in_array + idx -1, minus_value(planed_size - real_size));
 	}
 		else
 		{
@@ -180,14 +181,12 @@ void form_full_level_graph(Graph graph)
 		starting_point = graph.full_vertex_array[(current_level - 1) * graph.number_of_vertex - 1]; // previous last element
 	}
 
-	vertex number_edges_to_process =
-					ending_point- starting_point;
-	int added_offset = 0;
-	if (current_level != 1)
-		added_offset = graph.full_vertex_array[(current_level - 1) * graph.number_of_vertex - 1];
+	vertex number_edges_to_process = ending_point- starting_point;
+	// Value to add as an offset (previous end - current begin)
+	int added_offset = starting_point;
 
-	device_ptr<vertex> temp_to =  device_malloc<vertex>(graph.number_of_edges * 2);
-	device_ptr<vertex> temp_from =  device_malloc<vertex>(graph.number_of_edges * 2);
+	device_ptr<vertex> temp_to =  device_malloc<vertex>(number_edges_to_process);
+	device_ptr<vertex> temp_from =  device_malloc<vertex>(number_edges_to_process);
 
 	/* Form temp to an temp from vector from edge arrray */
 	thrust::copy(thrust::device, graph.full_edge_array + starting_point,
@@ -201,7 +200,6 @@ void form_full_level_graph(Graph graph)
 
 		if (current_level != 1)
 		{
-
 
 			thrust::transform(thrust::device,
 				temp_from, temp_from + number_edges_to_process, temp_from,
@@ -244,7 +242,7 @@ void form_full_level_graph(Graph graph)
 	/* Find all breaking points. 0 0 1 0 0 0 1 ... */
 	thrust::transform(
 		thrust::device,
-		thrust::make_counting_iterator<vertex>(0 + added_offset),
+		thrust::make_counting_iterator<vertex>(added_offset),
 		thrust::make_counting_iterator<vertex>(number_edges_to_process + added_offset),
 		process_vetxes,
 		replacer(graph.full_vertex_array + (current_level-1)* graph.number_of_vertex, graph.number_of_vertex));
@@ -259,7 +257,7 @@ void form_full_level_graph(Graph graph)
 		Offset array, step 1:
 		Result <- Temp_TO - Temp_FROM
 	*/
-		device_ptr<vertex>  position_in_array = device_malloc<vertex>(number_edges_to_process+1);
+		device_ptr<vertex>  position_in_array = device_malloc<vertex>(number_edges_to_process);
 
 		thrust::transform(
 			thrust::device,
@@ -309,7 +307,7 @@ void form_full_level_graph(Graph graph)
 
 	/*
 	*	Remove empty, non used data
-	*/
+		*/
 	thrust::remove(thrust::device, expanded_array, expanded_array + prev_max_position, -1);
 	thrust::remove(thrust::device, from_vertex_array, from_vertex_array + prev_max_position, -1);
 
