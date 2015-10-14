@@ -77,4 +77,4 @@ typedef std::pair<std::pair<int,int>,int> Piii;
 #define domain vertex*
 #define field  vertex
 
-#define opacity double
+#define opacity float

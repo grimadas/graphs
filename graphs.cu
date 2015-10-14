@@ -52,7 +52,7 @@ __global__  void expander(
 	int real_size = thrust::distance(expanded_array + offset_to_put_exp_array, current_position);
 	int starting = current_vertex[idx];
 	// TODO : check real size value
-	printf("current vertex %d with real size %d \n", starting, real_size);
+
 	/*
 	*	Expand the current processing vertex to the size *real size*;
 	*			Result : 0 0 0 1 1 ... (the vertex from expanded)
@@ -165,17 +165,24 @@ __global__ void edge_copier(
 	thrust::copy(thrust::device, expanded_array + start_point, expanded_array + end_point, full_edge_array + edge_put_list_start);
 }
 
+__global__ void opacity_former(
+	device_ptr<vertex> from,
+	device_ptr<vertex> to,
+	device_ptr<vertex> degree_count,
+	device_ptr<opacity> opacity_matrix,
+	int max_degree
+	)
+	{
+		// TODO: Not sure about this
+		int i = blockIdx.x*blockDim.x + threadIdx.x;
+		opacity min = degree_count[from[i] - 1] * degree_count[to[i] - 1];
+		if (degree_count[from[i] - 1] == degree_count[to[i] - 1])
+			min = degree_count[from[i] - 1];
+		opacity* k = thrust::raw_pointer_cast(opacity_matrix + max_degree*(from[i] - 1) + (to[i] - 1));
+		opacity added_value = 1.0/ (2.0 * min);
+		atomicAdd(k, added_value);
 
-__global__ void vertex_offset_former(
-	device_ptr<vertex> vertex_from_array,
-	device_ptr<vertex> copy_to_array)
-{
-	int idx = blockIdx.x*blockDim.x + threadIdx.x;
-
-	copy_to_array[vertex_from_array[idx]] = 1; //copy_to_array[vertex_from_array[idx]] + 1;
-
-}
-
+	}
 
 /*
 *	By finding shortest paths, form to L_VALUE level
@@ -280,7 +287,7 @@ void form_full_level_graph(Graph graph)
 
 	int grid_size = number_edges_to_process;
 	thrust::device_ptr<vertex> positions_vertex_current_level = thrust::device_malloc<vertex>(graph.number_of_vertex);
-	thrust::fill(thrust::device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0 );
+	thrust::fill(thrust::device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
 
 	expander<<< 1, grid_size >>>(
 		process_vetxes, temp_from, temp_to,
@@ -290,11 +297,10 @@ void form_full_level_graph(Graph graph)
 		number_edges_to_process,
 		graph.number_of_vertex,
 		current_level,
-		positions_vertex_current_level
-		);
+		positions_vertex_current_level);
 	//cudaThreadSynchronize();
 	cudaDeviceSynchronize();
-	cout << endl << "Expander finished work" << endl;
+
 	device_free(temp_from);
 	device_free(temp_to);
 	device_free(process_vetxes);
@@ -308,44 +314,15 @@ void form_full_level_graph(Graph graph)
 	/*
 	*	Form vertex offset list
 	*/
-	int gridsize = position_in_array[number_edges_to_process - 1];
+	//	int gridsize = position_in_array[number_edges_to_process - 1];
 
-	// Add
-
-	//vertex_offset_former<<<gridsize, 1>>> (from_vertex_array, positions_vertex_current_level);
-
-
-		// STEP 2: Forming offset
+	// STEP 2: Forming offset
 	thrust::inclusive_scan(thrust::device, positions_vertex_current_level,
 							positions_vertex_current_level + graph.number_of_vertex, positions_vertex_current_level);
-	int* a = new int[100];
-
-	thrust::copy(expanded_array, expanded_array + gridsize, a);
-	cout << " Expanded arra " << endl;
-	for (int i = 0; i < gridsize; i++)
-	{
-				cout << a[i] << " ";
-	}
-
-	thrust::copy(from_vertex_array, from_vertex_array + gridsize, a);
-	cout << endl << " from_vertex_array " << endl;
-	for (int i = 0; i < gridsize; i++)
-	{
-				cout << a[i] << " ";
-	}
-
-
-	thrust::copy(positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, a);
-	cout << " Vertex ending offset " << endl;
-	for (int i = 0; i < 7; i++)
-	{
-				cout << a[i] << " ";
-	}
 
 	thrust::device_ptr<vertex> vertex_ending_offsets = thrust::device_malloc<vertex>(graph.number_of_vertex);
 	unifier <<<1, graph.number_of_vertex >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets);
 
-	cout << " I think it works" << endl;
 
 	thrust::device_ptr<vertex> position_in_edge_list = thrust::device_malloc<vertex>(graph.number_of_vertex);
 
@@ -356,7 +333,7 @@ void form_full_level_graph(Graph graph)
 		graph.full_vertex_array + current_level * graph.number_of_vertex);
 
 
-	cout << "BAM THAT IS IT" << endl;
+
 	thrust::inclusive_scan(thrust::device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 		graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
@@ -376,7 +353,7 @@ void form_full_level_graph(Graph graph)
 	device_free(positions_vertex_current_level);
 	device_free(vertex_ending_offsets);
 
-	cout << "The okey 6" << endl;
+
 	}
 }
 
@@ -391,17 +368,13 @@ void ordering_function(Graph graph)
 /*********************************
 *	L opacity matrix calculation
 *********************************/
-/*
+
 void calc_L_opacity(Graph graph)
 {
-	for (int i = 1; i < graph.L_VALUE; i++)
+	for (int i = 1; i <= graph.L_VALUE; i++)
 	{
 		// full_edge_array - here we store all adjasent
 
-		vertex N = graph.full_vertex_array[i*graph.number_of_vertex - 1];
-		cout << "N+ " << N << endl;
-		thrust::device_vector<vertex> from(N);
-		thrust::device_ptr<vertex>
 		// Forming indexes (from vertex)
 		int starting_point = 0;
 		int ending_point = graph.full_vertex_array[(i)*graph.number_of_vertex - 1];
@@ -411,24 +384,22 @@ void calc_L_opacity(Graph graph)
 		{
 			starting_point = graph.full_vertex_array[(i - 1)* graph.number_of_vertex - 1];
 		}
+
+		vertex N = ending_point - starting_point;
+		device_ptr<vertex> from = device_malloc<vertex>(N);
+
 		/*
 		*	Expanding indexes. Finding break points
 		*	Example: 0 1 2 3 4 .. 20 => 0 0 1 0 0 0 1 ...
 		*/
-		/*
+
 		thrust::transform(
 			thrust::device,
 			thrust::make_counting_iterator<vertex>(starting_point),
 			thrust::make_counting_iterator<vertex>(ending_point),
-			from.begin(), replacer(thrust::raw_pointer_cast(graph.full_vertex_array.data()), graph.number_of_vertex)
+			from, replacer(graph.full_vertex_array + (i-1)* graph.number_of_vertex, graph.number_of_vertex)
 			);
 
-		// debug print
-		cout << endl << "From degrees ";
-		for (auto iter : from)
-		{
-			cout << "  " << iter;
-		}
 
 
 		//	from[0] = full_vertex_array[(number_of_vertex-1)*(i-1)];
@@ -436,103 +407,58 @@ void calc_L_opacity(Graph graph)
 		*	Transorming into indexes:
 		*	Example:	0 0 1 0 0 0 1 => 0 0 1 1 1 1 2 2 2 ..
 		*/
-		/*
-		thrust::inclusive_scan(thrust::device, from.begin(), from.end(), from.begin());
 
-		cout << endl << "From degrees ";
-		for (auto iter : from)
-		{
-			cout << "  " << iter;
-		}
+		thrust::inclusive_scan(thrust::device, from, from + N , from);
 
 
 		/*
 		*	Transforming from indexes into degrees:
 		*	Example:  0 0 1 1 1 1 2 2 2.. => 2 2 4 4 4 4 ...
 		*/
-		/*
+
 		thrust::transform(
 			thrust::device,
-			thrust::make_permutation_iterator(graph.vertex_degrees.begin(), from.begin()),
-			thrust::make_permutation_iterator(graph.vertex_degrees.begin(), from.end()),
-			from.begin(), thrust::identity<vertex>());
-
-		cout << endl << "From degrees ";
-		for (auto iter : from)
-		{
-			cout << "  " << iter;
-		}
-
+			thrust::make_permutation_iterator(graph.vertex_degrees, from),
+			thrust::make_permutation_iterator(graph.vertex_degrees, from + N),
+			from, thrust::identity<vertex>());
 
 		/*
 		*	To vector. Transform edge list into degree list =>  similar techno
 		*
 		*/
 
-		/*
-		thrust::device_vector<vertex> to(N);
+
+		thrust::device_ptr<vertex> to = device_malloc<vertex>(N);
 		//	auto iter_begin = thrust::make_transform_iterator(full_edge_array.begin(), minus_one());
 		//	auto iter_end =   thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one());
 
-		thrust::copy(thrust::device, graph.full_edge_array.begin(), graph.full_edge_array.begin() + N, to.begin());
-
-		cout << endl << "TO degrees ";
-		for (auto iter : to)
-		{
-			cout << "  " << iter;
-		}
-
+		thrust::copy(thrust::device, graph.full_edge_array + starting_point, graph.full_edge_array + ending_point, to);
 
 		thrust::transform(
 			thrust::device,
-			thrust::make_permutation_iterator(graph.vertex_degrees.begin(), to.begin()),
-			thrust::make_permutation_iterator(graph.vertex_degrees.begin(), to.end()),
-			to.begin(), thrust::identity<vertex>());
-
-		cout << endl << "TO degrees ";
-		for (auto iter : to)
-		{
-			cout << "  " << iter;
-		}
+			thrust::make_permutation_iterator(graph.vertex_degrees, to),
+			thrust::make_permutation_iterator(graph.vertex_degrees, to + N),
+			to, thrust::identity<vertex>());
 
 		/*
 		*  Find max and min in zip iterator of to - from pairs
 		*/
-		/*
+
+
 		thrust::transform(
 			thrust::device,
-			thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())),
-			thrust::make_zip_iterator(thrust::make_tuple(from.end(), to.end())),
-			thrust::make_zip_iterator(thrust::make_tuple(from.begin(), to.begin())),
-			min_max_transform()
-			);
-		cout << endl << "From degrees ";
-		for (auto iter : from)
-		{
-			cout << "  " << iter;
-		}
-
-		cout << endl << "TO degrees ";
-		for (auto iter : to)
-		{
-			cout << "  " << iter;
-		}
+			thrust::make_zip_iterator(thrust::make_tuple(from, to)),
+			thrust::make_zip_iterator(thrust::make_tuple(from + N, to + N)),
+			thrust::make_zip_iterator(thrust::make_tuple(from, to)),
+			min_max_transform());
 
 		/*
 		* 	Opacity  matrix forming. Now it is n^ 2 memory TODO: IN PARALLEL using cuda kernel
 		* 	Assumptions !!: Not optimum for undericted (div 2).
 		* 	Problem with same degree. Example: {4 = > 4} - must count only degree of one.
 		*/
-		/*
-		for (int i = 0; i < N; i++)
-		{
-			double min = graph.degree_count[from[i] - 1] * graph.degree_count[to[i] - 1];
-			if (graph.degree_count[from[i] - 1] == graph.degree_count[to[i] - 1])
-				min = graph.degree_count[from[i] - 1];
-			cout << endl << "FOR " << from[i] << " " << to[i] << " = " << min;
-			graph.opacity_matrix[graph.max_degree*(from[i] - 1) + (to[i] - 1)] += 1.0 / (2.0*min);
-		}
-
+		int gridsize = N;
+		opacity_former<<<1, gridsize>>>(from, to, graph.degree_count, graph.opacity_matrix, graph.max_degree);
 
 		/*
 		* Sort by key. Indexes (values) and degrees (keys)
@@ -541,18 +467,19 @@ void calc_L_opacity(Graph graph)
 		/*
 		* 	Reduce by key. Count how many pairs we have. 0 0 3 3
 		*/
-/*
+
 	}
 }
-*/
 
 
-
-
-int main()
+int main(int argc, char* argv[])
 {
 
 	Graph graph;
+	cout << "Converting to " << endl;
+	int l_value = std::atoi(argv[1]);
+	cout << l_value << " L value" << endl;
+	graph.L_VALUE = l_value;
 	graph.init_test_graph(); // Reading graph from the file in COO format
 	graph.print_coo_graph();
 	graph.convert_to_CSR();
@@ -571,8 +498,8 @@ int main()
 	//graph.single_bfs(2);
 //	graph.form_full_level_graph();
 //	graph.print_csr_graph();
-//	graph.calc_L_opacity();
-//	graph.print_opacity_matrix();
+		calc_L_opacity(graph);
+  	graph.print_opacity_matrix();
 
 	unsigned int endTime = timeGetTime();
 	unsigned int gpu_time = unsigned int(endTime - startTime);

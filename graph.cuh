@@ -38,7 +38,7 @@ public:
 device_ptr<vertex> full_vertex_array;
 device_ptr<vertex> full_edge_array;
 
-int L_VALUE = 3;
+int L_VALUE = 4;
 
 // Current
 // domain vertex_current_end; We don't need this ?
@@ -143,8 +143,16 @@ bool directed = false;
 	void print_opacity_matrix()
 	{
 		printf("\n Opacity : ");
-		thrust::for_each(thrust::device, opacity_matrix, opacity_matrix + max_degree*max_degree, printer_opacity());
-
+		opacity* a = new opacity[number_of_vertex * number_of_vertex];
+		thrust::copy(opacity_matrix, opacity_matrix + max_degree*max_degree, a);
+		for (int i = 0; i< max_degree; i++)
+		{
+			for (int j = 0; j< max_degree; j++)
+			{
+				cout << a[i*max_degree + j] << " ";
+			}
+			cout << endl;
+		}
 	}
 
 

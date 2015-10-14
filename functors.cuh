@@ -230,7 +230,7 @@ struct unique_edge
 
 
         int ending = full_vertex_array[i*number_of_vertex + current_vertex];
-        printf("I will search among %d %d for vertex %d \n", starting, ending, current_vertex);
+
         bool vertex_previously_found = thrust::binary_search(thrust::device,
           full_edge_array + starting, full_edge_array + ending, t);
         if  (vertex_previously_found)
