@@ -38,7 +38,7 @@ public:
 device_ptr<vertex> full_vertex_array;
 device_ptr<vertex> full_edge_array;
 
-int L_VALUE = 4;
+int L_VALUE = 3;
 
 // Current
 // domain vertex_current_end; We don't need this ?
