@@ -48,6 +48,7 @@ int L_VALUE = 4;
 	// COO graph format (coordinate list)
 domain from_array_host;
 domain to_array_host;
+domain from_to_host_matrix;
 // Copy of arrays in the device
 device_ptr<vertex> from_array;
 device_ptr<vertex> to_array;
@@ -75,20 +76,35 @@ bool directed = false;
 			myfile.open(file_name);
 			myfile >> number_of_vertex >> number_of_edges;
 		//	number_of_edges = 0;
-			printf("Graph parametrs %d %d \n", number_of_vertex, number_of_edges);
 			// reserve maximum value needed
-			from_array_host = new vertex[number_of_vertex*number_of_vertex];
-			to_array_host = new vertex[number_of_vertex*number_of_vertex];
+			from_to_host_matrix = new vertex[number_of_vertex * number_of_vertex];
+			thrust::fill(from_to_host_matrix, from_to_host_matrix + number_of_vertex*number_of_vertex, 0);
 			// Read a pair of vertex - vertex forming an edge
 			int a, b;
 			number_of_edges = 0;
 			while (myfile >> a >> b)
 			{
-				from_array_host[number_of_edges] = a;
-				to_array_host[number_of_edges] = b;
+				from_to_host_matrix[number_of_vertex*min(a,b) + max(a,b)] = 1;
 				number_of_edges++;
 			}
+			from_array_host = new vertex[number_of_edges];
+			to_array_host = new vertex[number_of_edges];
+			number_of_edges = 0;
+			for(int i =0; i< number_of_vertex; i++)
+			{
+				for(int j = i+1; j< number_of_vertex; j++)
+				{
+					if (from_to_host_matrix[i*number_of_vertex + j] == 1)
+					{
+						from_array_host[number_of_edges] = i;
+						to_array_host[number_of_edges] = j;
+						number_of_edges++;
+					}
+				}
+			}
 			// Reading from file
+			delete from_to_host_matrix;
+			printf("Graph parametrs %d %d \n", number_of_vertex, number_of_edges);
 			myfile.close();
 	}
 
@@ -206,6 +222,22 @@ bool directed = false;
 
 		from_array = device_malloc<vertex>(number_of_edges+1);
 		to_array = device_malloc<vertex>(number_of_edges+1);
+ 		domain a = new vertex[number_of_edges];
+		thrust::copy(from_array_host, from_array_host + number_of_edges, a);
+		cout << "From array: " ;
+		for(int i=0; i < number_of_edges; i++)
+		{
+			cout << " " << a[i];
+		}
+		cout << endl;
+
+		thrust::copy(to_array_host, to_array_host + number_of_edges, a);
+		cout << "TO array: " ;
+		for(int i=0; i < number_of_edges; i++)
+		{
+			cout << " " << a[i];
+		}
+		cout << endl;
 
 			/* Copy arrays to device */
 		thrust::copy(from_array_host, from_array_host + number_of_edges, from_array);
@@ -312,57 +344,87 @@ bool directed = false;
 	*  Converting from COO (edge list) format to CSR (adjacency list) format
 	*  Run it after someting is in COO list (from and to).
 	*/
-/*
 	void convert_to_CSR_no_doubles()
 	{
 		/*
-		* First combine and sort data from and to array - this will be our new edge_list according to their indexes
+		* First combine and sort data from and to array - this will be our new edge_list acording to their indexes
 		*/
-		/*
 		init_arrays();
-
-		thrust::device_vector<vertex> temp_indx(2 * number_of_edges);
-		thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
-
+		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges+1);
+		//wrap raw pointer with a device_ptr to use with Thrust functions
 
 		thrust::counting_iterator<vertex> index_from(0);
 		thrust::counting_iterator<vertex> index_to(number_of_edges);
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		thrust::merge_by_key(from_array, from_array,
-			to_array, to_array,
+		thrust::merge_by_key(thrust::device,
+			from_array, from_array + number_of_edges,
+			to_array, to_array + number_of_edges,
 			index_from, index_to,
 			temp_indx,
-			full_edge_array));
+			full_edge_array);
 
-		thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
+			cout << "Merge ok";
 
-
+		thrust::sort_by_key(thrust::device,
+			temp_indx, temp_indx + number_of_edges,
+			full_edge_array);
+			cout << "Sort ok";
 		/*
 		*	Form vertex offset list
 		*/
 
-/*
-		thrust::reduce_by_key(temp_indx.begin(), temp_indx.end(),
-			thrust::make_constant_iterator(1), temp_indx.begin(), full_vertex_array.begin());
+		thrust::reduce_by_key(thrust::device,
+			temp_indx, temp_indx + number_of_edges,
+			thrust::make_constant_iterator(1),
+			temp_indx,
+			full_vertex_array);
+			cout << "Reduce ok";
+		/*
+		*	Form degree vector.
+		*	Each vertex has degree
+		*	Total size: number_of_vertex
+		*/
 
-		thrust::inclusive_scan(full_vertex_array.begin(), full_vertex_array.begin() + number_of_vertex, full_vertex_array.begin());
+		thrust::copy(thrust::device,
+			full_vertex_array,
+			full_vertex_array + number_of_vertex,
+			vertex_degrees);
+				cout << "Copy ok";
+		/*
+		*	Copy data to degree_count array
+		*/
+		int gridsize = number_of_vertex;
+		thrust::fill(thrust::device, degree_count, degree_count + number_of_vertex, 0);
+		max_degree = thrust::reduce(thrust::device, vertex_degrees, vertex_degrees + number_of_vertex, 0, thrust::maximum<vertex>());
+		cout << "Degree ok";
 
-		// Clean temporal arrays
-
-		temp_indx.clear();
-		temp_indx.shrink_to_fit();
+		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count);
+			cout << "Ha gegree";
+		/*
+		*	Form vertex offset array
+		*	Result: vertex offser array => 2 4 10 ...
+		*/
+		thrust::inclusive_scan(thrust::device,
+			 full_vertex_array,
+			 full_vertex_array+number_of_vertex,
+			 full_vertex_array);
+			 	cout << "Inclusive scan ok";
+		// Clean temporal array
+		device_free(temp_indx);
 
 		/*
 		*	Transform the edge list array according to they paired edge.
 		*	Form edge list combined by vertexes
 		*/
-		/*
-		domain a = thrust::raw_pointer_cast(from_array.data());
-		domain b = thrust::raw_pointer_cast(to_array.data());
 
-		thrust::transform(full_edge_array.begin(), full_edge_array.begin() + 2 * number_of_edges, full_edge_array.begin(),
-			coo_to_csr_converter(a, b, number_of_edges));
-	} */
+		thrust::transform(thrust::device,
+			full_edge_array, full_edge_array + 2*number_of_edges,
+			full_edge_array,
+			coo_to_csr_converter(from_array, to_array,
+				number_of_edges));
+
+				cout << "Yep ";
+	}
 };

@@ -93,78 +93,16 @@ __global__ void someting(device_ptr<int> previos,  device_ptr<int> current,
 
 int main()
 {
-    // Initial host data
-    int full2[40];
-    int full[5] = {1, 2, 3, 4, 5};
-    int vert[5] = {0, 0, 1, 1, 2};
-    int _temp_from[5] = {0, 0, 1, 2, 3};
-    int _temp_to[5] = {1, 2, 3, 4, 4};
+  thrust::device_vector<float> Similarities(8192*4320);
+  thrust::device_vector<float> Similarities2(8192*4320);
+  thrust::device_vector<float> Similarities3(2*8192*4320);
+  Similarities[0] = 222222;
+  Similarities[9830400]= 222223;
+  std::cout << "Similarities[0] = " << Similarities[0] << std::endl;
+  std::cout << "Similarities[9380400] = " << Similarities[9830400] << std::endl;
 
-    int _position[5] = {1,2,2,2,1};
+  thrust::merge(Similarities.begin(), Similarities.end(), Similarities2.begin(), Similarities2.end(), Similarities3.begin());
+  std::cout << "Similarities3[9380400] = " << Similarities3[9830400] << std::endl;
 
-    device_ptr<int> full_edge_array = device_malloc<int>(10);
-    thrust::copy(full, full + 5, full_edge_array);
-
-    device_ptr<int> vertex_array = device_malloc<int>(10);
-    thrust::copy(vert, vert + 5, vertex_array);
-
-    device_ptr<int> temp = device_malloc<int>(10);
-    thrust::copy(vert, vert + 5, vertex_array);
-
-    device_ptr<int> temp_from = device_malloc<int>(10);
-    thrust::copy(_temp_from, _temp_from + 5, temp_from);
-
-    device_ptr<int> temp_to = device_malloc<int>(10);
-    thrust::copy(_temp_to, _temp_to + 5, temp_to);
-    device_ptr<int> current = thrust::device_malloc<int>(100);
-    thrust::fill(thrust::device, current, current + 100, -1);
-    device_ptr<int> current2 = thrust::device_malloc<int>(100);
-
-    thrust::device_ptr<int> position = device_malloc<int>(5);
-    thrust::copy(_position, _position + 5, position);
-    thrust::inclusive_scan(thrust::device, position, position + 5, position);
-
-    thrust::fill(thrust::device, current2, current2 + 100, -1);
-    device_ptr<int> current_begin = current;
-    device_ptr<int> current_begin2 = current2;
-    device_ptr<int> previos = current;
-    int prev_position = position[4];
-    someting<<<1,5>>>(previos, current,
-            full_edge_array, temp_from,
-            temp_to, current2,
-                      vertex_array, position);
-
-    thrust::copy(position, position + 5, _position);
-    thrust::remove(thrust::device, current, current + prev_position, -1);
-    thrust::remove(thrust::device, current2, current2 + prev_position, -1);
-
-    for (int i=0; i< 5; i++)
-    {
-      full[i] = -1;
-    }
-    //thrust::remove(current_begin, current_begin + 40, -1);
-    thrust::copy(current_begin2, current_begin2 + _position[4], full2);
-    for (int i=0; i< _position[4]; i++)
-    {
-      cout << full2[i] << " ";
-    }
-    cout << endl;
-
-    thrust::copy(current_begin, current_begin + _position[4], full2);
-    for (int i=0; i< _position[4]; i++)
-    {
-      cout << full2[i] << " ";
-    }
-    cout << endl;
-
-    // The slowest part TODO: in kernel
-    /*
-    for (int i=0; i< graph.number_of_vertex; i++)
-    {
-      tempo_vector[i] = device_malloc<vertex>(graph.number_of_vertex * graph.number_of_vertex);
-      current[i] = tempo_vector[i];
-      previous[i] = current[i];
-    }
-    */
-    return 0;
+  return 0;
 }
