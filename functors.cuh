@@ -288,5 +288,4 @@ struct add_offset
       return t + value_to_add;
   }
   vertex value_to_add;
-
 };

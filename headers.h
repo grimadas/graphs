@@ -15,10 +15,13 @@
 #include <thrust/sequence.h>
 #include <thrust\sort.h>
 #include <thrust/unique.h>
+#include <thrust/gather.h>
 #include <thrust/execution_policy.h>
 #include <thrust\iterator\counting_iterator.h>
 #include <thrust\iterator\permutation_iterator.h>
 #include <thrust\binary_search.h>
+#include <thrust/adjacent_difference.h>
+
 // Headers for floyd warshall algorithm
 #include <algorithm>
 #include <iostream>
@@ -50,6 +53,9 @@
 
 #define _DTH cudaMemcpyDeviceToHost
 #define _HTD cudaMemcpyHostToDevice
+
+
+
 
 //typedef for vector used in path reconstruction
 using namespace std;

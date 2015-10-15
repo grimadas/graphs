@@ -28,6 +28,7 @@
 
 #include "headers.h"
 #include "functors.cuh"
+#include "kernels.cuh"
 
 using namespace thrust;
 class Graph {
@@ -153,6 +154,7 @@ bool directed = false;
 			}
 			cout << endl;
 		}
+		delete a;
 	}
 
 
@@ -208,6 +210,7 @@ bool directed = false;
 			/* Copy arrays to device */
 		thrust::copy(from_array_host, from_array_host + number_of_edges, from_array);
 		thrust::copy(to_array_host, to_array_host + number_of_edges, to_array);
+		delete from_array_host, to_array_host;
 
 		vertex_degrees = device_malloc<vertex>(number_of_vertex);
 		degree_count = device_malloc<vertex>(number_of_vertex);
@@ -242,12 +245,12 @@ bool directed = false;
 			temp_indx,
 			full_edge_array);
 
-
+			cout << "Merge ok";
 
 		thrust::sort_by_key(thrust::device,
 			temp_indx, temp_indx + 2*number_of_edges,
 			full_edge_array);
-
+			cout << "Sort ok";
 		/*
 		*	Form vertex offset list
 		*/
@@ -257,8 +260,7 @@ bool directed = false;
 			thrust::make_constant_iterator(1),
 			temp_indx,
 			full_vertex_array);
-
-
+			cout << "Reduce ok";
 		/*
 		*	Form degree vector.
 		*	Each vertex has degree
@@ -269,29 +271,17 @@ bool directed = false;
 			full_vertex_array,
 			full_vertex_array + number_of_vertex,
 			vertex_degrees);
+				cout << "Copy ok";
 		/*
 		*	Copy data to degree_count array
 		*/
-		thrust::copy(thrust::device,
-			vertex_degrees, vertex_degrees + number_of_vertex,
-			degree_count);
-		/*
-		*
-		*/
-		thrust::sort(thrust::device,
-			degree_count, degree_count + number_of_vertex);
+		int gridsize = number_of_vertex;
+		thrust::fill(thrust::device, degree_count, degree_count + number_of_vertex, 0);
+		max_degree = thrust::reduce(thrust::device, vertex_degrees, vertex_degrees + number_of_vertex, 0, thrust::maximum<vertex>());
+		cout << "Degree ok";
 
-		max_degree = degree_count[number_of_vertex - 1];
-		/*
-		*	Form degree count array.
-		*	Each vertex degree has ammount (frequency in graph)
-		*	Result: Total size 0.. max_degree
-		*/
-		thrust::reduce_by_key(thrust::device,
-			degree_count, degree_count + number_of_vertex,
-			thrust::make_constant_iterator(1),
-			thrust::make_discard_iterator(),
-			degree_count);
+		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count);
+			cout << "Ha gegree";
 		/*
 		*	Form vertex offset array
 		*	Result: vertex offser array => 2 4 10 ...
@@ -300,7 +290,7 @@ bool directed = false;
 			 full_vertex_array,
 			 full_vertex_array+number_of_vertex,
 			 full_vertex_array);
-
+			 	cout << "Inclusive scan ok";
 		// Clean temporal array
 		device_free(temp_indx);
 
@@ -314,19 +304,23 @@ bool directed = false;
 			full_edge_array,
 			coo_to_csr_converter(from_array, to_array,
 				number_of_edges));
-	}
 
+				cout << "Yep ";
+	}
 
 	/***
 	*  Converting from COO (edge list) format to CSR (adjacency list) format
 	*  Run it after someting is in COO list (from and to).
 	*/
-//	void convert_to_CSR_no_doubles()
-//	{
+/*
+	void convert_to_CSR_no_doubles()
+	{
 		/*
 		* First combine and sort data from and to array - this will be our new edge_list according to their indexes
 		*/
-	/*	init_arrays();
+		/*
+		init_arrays();
+
 		thrust::device_vector<vertex> temp_indx(2 * number_of_edges);
 		thrust::fill(temp_indx.begin(), temp_indx.end(), 0);
 
@@ -339,9 +333,8 @@ bool directed = false;
 		thrust::merge_by_key(from_array, from_array,
 			to_array, to_array,
 			index_from, index_to,
-			temp_indx.begin(),
-			full_edge_array.begin()
-			);
+			temp_indx,
+			full_edge_array));
 
 		thrust::sort_by_key(temp_indx.begin(), temp_indx.end(), full_edge_array.begin());
 

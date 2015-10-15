@@ -9,7 +9,7 @@ int main(int argc, char* argv[]){
 	int l_value = std::atoi(argv[2]);
 	const int N =  vertex_number;
 	int L = l_value;
-	cout << "Vertex num " << N << " l value " << 3;
+	cout << "Vertex num " << N << " l value " << l_value << endl;
 	const int NumBytes = N*N*sizeof(int);
 	//host allocations to create Adjancency matrix and result matrices with path matrices
 	int *OrigGraph = (int *)malloc(NumBytes);//will be original Adjancency matrix, will NOT be changed
@@ -30,7 +30,8 @@ int main(int argc, char* argv[]){
 */
 	//Read file from file
 	cout << "Reading file with graph: \n ";
-	_read_from_file(H_G, N);
+//	_read_from_file(H_G, N);
+	_read_from_file_directed(H_G, N);
 	cout << "Assigning initial paths ";
 
 

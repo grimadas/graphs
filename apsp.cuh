@@ -146,6 +146,28 @@ void _generateRandomGraph(int *G,int N,int range, int density){//density will be
 	}
 }
 
+
+int _read_from_file_directed(int *G,const int N){//reads in edge list from file
+	int num_edges=0;
+
+	ifstream readfile;//enable stream for reading file
+	readfile.open("Wiki-Vote.txt");
+	cout << "Opening sucess \n";
+	assert(readfile.good());//make sure it finds the file & file is
+	string line;
+	int v0,v1;
+	while(getline(readfile,line)){
+		istringstream linestream(line);
+		linestream>>v0>>v1;
+		G[v0*N+v1]=1;
+	//	G[v1*N + v0] = 1;
+		num_edges++;
+	}
+	readfile.close();
+	cout << "File closing \n";
+	return num_edges;
+}
+
 int _read_from_file(int *G,const int N){//reads in edge list from file
 	int num_edges=0;
 
@@ -158,7 +180,7 @@ int _read_from_file(int *G,const int N){//reads in edge list from file
 	while(getline(readfile,line)){
 		istringstream linestream(line);
 		linestream>>v0>>v1;
-		cout << v0 <<"  "<< v1 <<  " readed ";
+	
 		G[v0*N+v1]=1;
 		G[v1*N + v0] = 1;
 		num_edges++;
