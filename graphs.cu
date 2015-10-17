@@ -3,8 +3,7 @@
 	Author : Bulat, 2015
 
 */
-//#include "graph.cuh"
-#include "apsp.cuh"
+//#include "apsp.cuh"
 #include "graph.cuh"
 #include "headers.h"
 
@@ -146,7 +145,7 @@ void form_full_level_graph(Graph graph)
 
 	device_ptr<vertex> position_in_edge_list = device_malloc<vertex>(graph.number_of_vertex);
 
-	std::cout << endl;
+	std::cout << std::endl;
 	cudaDeviceSynchronize();
 
 	copy(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
@@ -306,25 +305,25 @@ int main(int argc, char* argv[])
 {
 
 	Graph graph;
-	std::cout << "Converting to " << endl;
+	std::cout << "Converting to " << std::endl;
 	int l_value = std::atoi(argv[1]);
-	std::cout << l_value << " L value" << endl;
+	std::cout << l_value << " L value" << std::endl;
 	graph.L_VALUE = l_value;
 	graph.init_test_graph(); // Reading graph from the file in COO format
 	graph.convert_to_CSR();
 	ordering_function(graph);
 
-	UINT wTimerRes = 0;
-	bool init = InitMMTimer(wTimerRes);
-	DWORD startTime = timeGetTime();
+//	UINT wTimerRes = 0;
+//	bool init = InitMMTimer(wTimerRes);
+//	DWORD startTime = timeGetTime();
 
 	form_full_level_graph(graph);
 	calc_L_opacity(graph);
 
-	unsigned int endTime = timeGetTime();
-	unsigned int gpu_time = unsigned int(endTime - startTime);
-	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
-	DestroyMMTimer(wTimerRes, init);
+//	unsigned int endTime = timeGetTime();
+//	unsigned int gpu_time = unsigned int(endTime - startTime);
+//	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
+//	DestroyMMTimer(wTimerRes, init);
 
 	graph.print_opacity_matrix();
 

@@ -45,12 +45,9 @@
 
 #define pb push_back
 #define all(c) (c).begin(),(c).end()
-#include <Windows.h>
-#include <MMSystem.h>
 
 #pragma comment(lib, "winmm.lib")
 #define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h> //to detect host memory leaks
 
 #define _DTH cudaMemcpyDeviceToHost
 #define _HTD cudaMemcpyHostToDevice

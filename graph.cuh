@@ -38,7 +38,7 @@ public:
 device_ptr<vertex> full_vertex_array;
 device_ptr<vertex> full_edge_array;
 
-int L_VALUE = 4;
+int L_VALUE;
 
 // Current
 // domain vertex_current_end; We don't need this ?
@@ -62,16 +62,17 @@ device_ptr<opacity> opacity_matrix;
 int number_of_vertex;
 int number_of_edges;
 
-bool directed = false;
+bool directed;
 
 	/**********************************************
 	*		Read graph in Edge list format (COO)
 	*		input:
 	*					string file_name
 	***********************************************/
-	void read_COO_format(string file_name)
+	void read_COO_format(char* file_name)
 	{
-			ifstream myfile;
+
+			std::ifstream myfile;
 			myfile.open(file_name);
 			myfile >> number_of_vertex >> number_of_edges;
 		//	number_of_edges = 0;
@@ -167,7 +168,7 @@ bool directed = false;
 			{
 				std::cout << a[i*max_degree + j] << " ";
 			}
-			std::cout << endl;
+			std::cout << std::endl;
 		}
 		delete a;
 	}
@@ -183,9 +184,9 @@ bool directed = false;
 
 		std::cout << "From ";
 		for_each(from_array_host, from_array_host + number_of_edges, printer());
-		std::cout << endl << "TO ";
+		std::cout << std::endl << "TO ";
 		for_each(to_array_host, to_array_host + number_of_edges, printer());
-		std::cout << endl;
+		std::cout << std::endl;
 
 	}
 
@@ -195,10 +196,11 @@ bool directed = false;
 	void init_test_graph()
 	{
 		// COO format
+
 		read_COO_format("graph.txt");
-		std::cout << "Reading finidhed" << endl;
-		std::cout << "Vertex " << number_of_vertex << endl;
-		std::cout << "Edges " << number_of_edges << endl;
+		std::cout << "Reading finidhed" << std::endl;
+		std::cout << "Vertex " << number_of_vertex << std::endl;
+		std::cout << "Edges " << number_of_edges << std::endl;
 
 	}
 
@@ -207,10 +209,10 @@ bool directed = false;
 	*****************************************/
 	void init_arrays()
 	{
-		int num_edges=L_VALUE*number_of_edges;
+		int num_edges=2 * L_VALUE*number_of_edges;
 		int num_vertex=L_VALUE*number_of_vertex;
-		if (!directed)
-				num_edges *= 2; // double edges
+	//	if (!directed)
+	//			num_edges *= 2; // double edges
 
 		full_edge_array = device_malloc<vertex>(num_edges);
 
@@ -228,7 +230,7 @@ bool directed = false;
 		{
 			std::cout << " " << a[i];
 		}
-		std::cout << endl;
+		std::cout << std::endl;
 
 		copy(to_array_host, to_array_host + number_of_edges, a);
 		std::cout << "TO array: " ;
@@ -236,7 +238,7 @@ bool directed = false;
 		{
 			std::cout << " " << a[i];
 		}
-		std::cout << endl;
+		std::cout << std::endl;
 
 			/* Copy arrays to device */
 		copy(from_array_host, from_array_host + number_of_edges, from_array);

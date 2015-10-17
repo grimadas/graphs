@@ -58,7 +58,7 @@ __global__  void expander(
 	*	Result:			1 2 1 .... (expanded edges)
 	*/
 	device_ptr<vertex> current_position =
- 	copy_if(device,
+ 	  copy_if(device,
 		make_permutation_iterator(full_edge_array, make_counting_iterator<vertex>(temp_from[idx])),
 		make_permutation_iterator(full_edge_array, make_counting_iterator<vertex>(temp_to[idx])),
 		expanded_array + offset_to_put_exp_array,
