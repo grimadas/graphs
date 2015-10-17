@@ -3,7 +3,7 @@
 *   @author = Bulat Nasrulin
 */
 #include "headers.h"
-using namespace thrust;
+
 
 
 /*
@@ -21,7 +21,7 @@ __global__ void degree_count_former
 {
   	int i = blockIdx.x*blockDim.x + threadIdx.x;
     vertex current_pos = vertex_degrees[i];
-    vertex* k = thrust::raw_pointer_cast(degree_count + current_pos -1 );
+    vertex* k = raw_pointer_cast(degree_count + current_pos -1 );
     atomicAdd(k, 1);
 }
 
@@ -57,16 +57,16 @@ __global__  void expander(
 	*	Copy to expanded array if the edge is unique (was not discovered previously, not equal to vertex itself)
 	*	Result:			1 2 1 .... (expanded edges)
 	*/
-	thrust::device_ptr<vertex> current_position =
- 	thrust::copy_if(thrust::device,
-		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_from[idx])),
-		thrust::make_permutation_iterator(full_edge_array, thrust::make_counting_iterator<vertex>(temp_to[idx])),
+	device_ptr<vertex> current_position =
+ 	copy_if(device,
+		make_permutation_iterator(full_edge_array, make_counting_iterator<vertex>(temp_from[idx])),
+		make_permutation_iterator(full_edge_array, make_counting_iterator<vertex>(temp_to[idx])),
 		expanded_array + offset_to_put_exp_array,
 		unique_edge(full_vertex_array, full_edge_array, current_vertex[idx],
 		number_of_vertex, current_level));
 
 	int planed_size = temp_to[idx] - temp_from[idx];
-	int real_size = thrust::distance(expanded_array + offset_to_put_exp_array, current_position);
+	int real_size = distance(expanded_array + offset_to_put_exp_array, current_position);
 	int starting = current_vertex[idx];
 	// TODO : check real size value
 
@@ -74,23 +74,23 @@ __global__  void expander(
 	*	Expand the current processing vertex to the size *real size*;
 	*			Result : 0 0 0 1 1 ... (the vertex from expanded)
 	*/
-	thrust::copy(thrust::device,
-		thrust::make_constant_iterator(starting),
-		thrust::make_constant_iterator(starting) + real_size,
+	copy(device,
+		make_constant_iterator(starting),
+		make_constant_iterator(starting) + real_size,
 		from_vertex_array + offset_to_put_exp_array);
-	vertex* k = thrust::raw_pointer_cast(vertex_offset + starting);
+	vertex* k = raw_pointer_cast(vertex_offset + starting);
 	atomicAdd(k, real_size);
 
 	if (planed_size != real_size)
 		if (idx != 0)
 	{
-			thrust::transform(thrust::device, position_in_array + idx - 1,
+			transform(device, position_in_array + idx - 1,
 			position_in_array + number_edges_to_process,
 			position_in_array + idx -1, minus_value(planed_size - real_size));
 	}
 		else
 		{
-			thrust::transform(thrust::device, position_in_array,
+			transform(device, position_in_array,
 				position_in_array + number_edges_to_process, position_in_array, minus_value(planed_size - real_size));
 		}
 }
@@ -102,8 +102,8 @@ __global__  void expander(
 *		   device_ptr full_vertex_array
 *	Out : Sorted full_edge_array
 */
-__global__ void sorter(thrust::device_ptr<vertex> full_edge_array,
-						thrust::device_ptr<vertex> full_vertex_array)
+__global__ void sorter(device_ptr<vertex> full_edge_array,
+						device_ptr<vertex> full_vertex_array)
 {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	int starting_point = 0;
@@ -113,7 +113,7 @@ __global__ void sorter(thrust::device_ptr<vertex> full_edge_array,
 	}
 	int ending_point = full_vertex_array[idx];
 	// sort
-	thrust::sort(thrust::device, full_edge_array + starting_point, full_edge_array + ending_point);
+	sort(device, full_edge_array + starting_point, full_edge_array + ending_point);
 
 }
 
@@ -140,11 +140,11 @@ __global__ void unifier(
 		int end_point = positions_vertex_current_level[idx];
 		if (end_point > start_point)
 		{
-			thrust::sort(thrust::device, expanded_array + start_point, expanded_array + end_point);
+			sort(device, expanded_array + start_point, expanded_array + end_point);
 			// remove dublicates
-			thrust::device_ptr<vertex> current_position =
-				thrust::unique(thrust::device, expanded_array + start_point, expanded_array + end_point);
-			vertex real_size = thrust::distance(expanded_array + start_point, current_position);
+			device_ptr<vertex> current_position =
+				unique(device, expanded_array + start_point, expanded_array + end_point);
+			vertex real_size = distance(expanded_array + start_point, current_position);
 			current_ending_offset[idx] = real_size;
 		}
 		else
@@ -179,7 +179,7 @@ __global__ void edge_copier(
 
 	int edge_put_list_start = full_vertex_array[L_VALUE *number_of_vertex + idx - 1];
 
-	thrust::copy(thrust::device, expanded_array + start_point, expanded_array + end_point, full_edge_array + edge_put_list_start);
+	copy(device, expanded_array + start_point, expanded_array + end_point, full_edge_array + edge_put_list_start);
 }
 
 __global__ void opacity_former(
@@ -203,7 +203,7 @@ __global__ void opacity_former(
       }
     }
       min = min * 2.0;
-		opacity* k = thrust::raw_pointer_cast(opacity_matrix + max_degree*(from[i] - 1) + (to[i] - 1));
+		opacity* k = raw_pointer_cast(opacity_matrix + max_degree*(from[i] - 1) + (to[i] - 1));
 		opacity added_value = 1.0/ (min);
   //  if (1.0 - *k > 0.001)
       atomicAdd(k, added_value);
@@ -229,39 +229,39 @@ __global__ void opacity_former(
                         InputIterator2 first2,
                         OutputIterator output)
   {
-    typedef typename thrust::iterator_difference<InputIterator1>::type difference_type;
+    typedef typename iterator_difference<InputIterator1>::type difference_type;
 
-    difference_type input_size  = thrust::distance(first1, last1);
-    difference_type output_size = thrust::reduce(thrust::device, first1, last1);
+    difference_type input_size  = distance(first1, last1);
+    difference_type output_size = reduce(device, first1, last1);
 
     // scan the counts to obtain output offsets for each input element
-    thrust::device_vector<difference_type> output_offsets(input_size, 0);
-    thrust::exclusive_scan(thrust::device, first1, last1, output_offsets.begin());
+    device_vector<difference_type> output_offsets(input_size, 0);
+    exclusive_scan(device, first1, last1, output_offsets.begin());
 
     // scatter the nonzero counts into their corresponding output positions
-    thrust::device_vector<difference_type> output_indices(output_size, 0);
-    thrust::scatter_if
-      (thrust::device, thrust::counting_iterator<difference_type>(0),
-       thrust::counting_iterator<difference_type>(input_size),
+    device_vector<difference_type> output_indices(output_size, 0);
+    scatter_if
+      (device, counting_iterator<difference_type>(0),
+       counting_iterator<difference_type>(input_size),
        output_offsets.begin(),
        first1,
        output_indices.begin());
 
     // compute max-scan over the output indices, filling in the holes
-    thrust::inclusive_scan
-      (thrust::device, output_indices.begin(),
+    inclusive_scan
+      (device, output_indices.begin(),
        output_indices.end(),
        output_indices.begin(),
-       thrust::maximum<difference_type>());
+       maximum<difference_type>());
 
     // gather input values according to index array (output = first2[output_indices])
-    OutputIterator output_end = output; thrust::advance(output_end, output_size);
-    thrust::gather(thrust::device, output_indices.begin(),
+    OutputIterator output_end = output; advance(output_end, output_size);
+    gather(device, output_indices.begin(),
                    output_indices.end(),
                    first2,
                    output);
 
     // return output + output_size
-    thrust::advance(output, output_size);
+    advance(output, output_size);
     return output;
   }

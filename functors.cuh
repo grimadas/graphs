@@ -11,7 +11,7 @@
 struct coo_to_csr_converter
 {
   __host__ __device__
-  coo_to_csr_converter(thrust::device_ptr<vertex> _a, thrust::device_ptr<vertex> _b, int _size) : a(_a), b(_b), size(_size){}
+  coo_to_csr_converter(device_ptr<vertex> _a, device_ptr<vertex> _b, int _size) : a(_a), b(_b), size(_size){}
 
   __host__ __device__
     field operator()(field x)
@@ -29,8 +29,8 @@ struct coo_to_csr_converter
 
     }
 
-  thrust::device_ptr<vertex> a;
-  thrust::device_ptr<vertex> b;
+  device_ptr<vertex> a;
+  device_ptr<vertex> b;
   int size;
 };
 
@@ -67,7 +67,7 @@ struct  previous_el
 struct if_exists
 {
   __host__ __device__
-  if_exists(thrust::device_ptr<vertex> a, thrust::device_ptr<vertex> b, int vert) : start(a), end(b), current(vert)
+  if_exists(device_ptr<vertex> a, device_ptr<vertex> b, int vert) : start(a), end(b), current(vert)
   {
 
   }
@@ -75,7 +75,7 @@ struct if_exists
   __host__ __device__
     bool operator()(vertex x)
   {
-    //	printf("SEARCHING distance %i \n", thrust::distance(start, end));
+    //	printf("SEARCHING distance %i \n", distance(start, end));
       int from = 0;
       if (current != 0)
       {
@@ -83,11 +83,11 @@ struct if_exists
       }
       int to = end[current];
 
-      return thrust::binary_search(thrust::device, start+from, start+to, x);
+      return binary_search(device, start+from, start+to, x);
   }
 
-  thrust::device_ptr<vertex> start;
-  thrust::device_ptr<vertex> end;
+  device_ptr<vertex> start;
+  device_ptr<vertex> end;
   int current;
 };
 
@@ -100,7 +100,7 @@ struct if_exists
 struct  replacer
 {
 		__host__ __device__
-		replacer(thrust::device_ptr<vertex> c, int _size) : cidt(c), size(_size)
+		replacer(device_ptr<vertex> c, int _size) : cidt(c), size(_size)
 		{
 
 		}
@@ -111,13 +111,13 @@ struct  replacer
 		{
 				// Device vector temporal array (candidate)
 
-				if (thrust::binary_search(thrust::device, cidt, cidt + size, t))
+				if (binary_search(device, cidt, cidt + size, t))
 					return 1;
 				return 0;
 		}
 
 
-		thrust::device_ptr<vertex> cidt;
+		device_ptr<vertex> cidt;
 		int size;
 };
 
@@ -159,13 +159,13 @@ struct min_max_transform
 {
 
   __host__ __device__
-  thrust::pair<double, double> operator()(thrust::tuple<double, double> t)
+  pair<double, double> operator()(tuple<double, double> t)
   {
 
-      double min = thrust::get<0>(t) - thrust::get<1>(t) < 0? thrust::get<0>(t) : thrust::get<1>(t);
-      double max = thrust::get<0>(t) -thrust::get<1>(t) > 0 ? thrust::get<0>(t) : thrust::get<1>(t);
+      double min = get<0>(t) - get<1>(t) < 0? get<0>(t) : get<1>(t);
+      double max = get<0>(t) -get<1>(t) > 0 ? get<0>(t) : get<1>(t);
 
-      return thrust::make_pair(min, max);
+      return make_pair(min, max);
   }
 };
 
@@ -178,18 +178,18 @@ struct counter
 {
 
   __host__ __device__
-  vertex operator()(thrust::tuple<vertex, vertex> t)
+  vertex operator()(tuple<vertex, vertex> t)
   {
 
-    return thrust::get<1>(t) - thrust::get<0>(t);
+    return get<1>(t) - get<0>(t);
   }
 };
 
 
 /***********************************************
 * Check if the vertex was previously discovered by current_vertex in each level until current_level
-* Input :  thrust::device_ptr<vertex> _full_vertex_array,
-           thrust::device_ptr<vertex> _full_edge_array,
+* Input :  device_ptr<vertex> _full_vertex_array,
+           device_ptr<vertex> _full_edge_array,
             vertex _current_vertex,
             int _number_of_vertex,
             int _current_level,
@@ -199,8 +199,8 @@ struct unique_edge
 {
   __host__ __device__
   unique_edge(
-    thrust::device_ptr<vertex> _full_vertex_array,
-    thrust::device_ptr<vertex> _full_edge_array,
+    device_ptr<vertex> _full_vertex_array,
+    device_ptr<vertex> _full_edge_array,
     vertex _current_vertex,
     int _number_of_vertex,
     int _current_level):   full_vertex_array(_full_vertex_array),
@@ -231,7 +231,7 @@ struct unique_edge
 
         int ending = full_vertex_array[i*number_of_vertex + current_vertex];
 
-        bool vertex_previously_found = thrust::binary_search(thrust::device,
+        bool vertex_previously_found = binary_search(device,
           full_edge_array + starting, full_edge_array + ending, t);
         if  (vertex_previously_found)
           return false;
@@ -241,8 +241,8 @@ struct unique_edge
       return true;
     }
 
-  thrust::device_ptr<vertex> full_vertex_array;
-  thrust::device_ptr<vertex> full_edge_array;
+  device_ptr<vertex> full_vertex_array;
+  device_ptr<vertex> full_edge_array;
   vertex current_vertex;
   int number_of_vertex;
   int current_level;

@@ -33,29 +33,29 @@ void form_full_level_graph(Graph graph)
 	device_ptr<vertex> temp_from =  device_malloc<vertex>(number_edges_to_process);
 
 	/* Form temp to an temp from vector from edge arrray */
-	thrust::copy(thrust::device, graph.full_edge_array + starting_point,
+	copy(device, graph.full_edge_array + starting_point,
 	graph.full_edge_array + ending_point,
 	temp_to);
 
-	thrust::copy(thrust::device,
+	copy(device,
 		graph.full_edge_array + starting_point, graph.full_edge_array + ending_point,
 		 temp_from);
 		//
-		thrust::transform(thrust::device,
+		transform(device,
 			temp_from, temp_from + number_edges_to_process,
 			temp_from, previous_el(current_level * graph.number_of_vertex + 1));
 
 	/* Store begining and ending */
-	thrust::copy(
-		thrust::device,
-		thrust::make_permutation_iterator(graph.full_vertex_array, temp_to),
-		thrust::make_permutation_iterator(graph.full_vertex_array, temp_to + number_edges_to_process),
+	copy(
+		device,
+		make_permutation_iterator(graph.full_vertex_array, temp_to),
+		make_permutation_iterator(graph.full_vertex_array, temp_to + number_edges_to_process),
 		temp_to);
 
-	thrust::copy(
-		thrust::device,
-		thrust::make_permutation_iterator(graph.full_vertex_array, temp_from),
-		thrust::make_permutation_iterator(graph.full_vertex_array,
+	copy(
+		device,
+		make_permutation_iterator(graph.full_vertex_array, temp_from),
+		make_permutation_iterator(graph.full_vertex_array,
 		temp_from + number_edges_to_process), temp_from);
 
 
@@ -64,11 +64,11 @@ void form_full_level_graph(Graph graph)
 	*/
 	device_ptr<vertex> temp_vertexes =  device_malloc<vertex>(graph.number_of_vertex);
 	device_ptr<vertex> process_vetxes = device_malloc<vertex>(number_edges_to_process+1);
-	thrust::copy(thrust::device, graph.full_vertex_array + (current_level-1)*graph.number_of_vertex, graph.full_vertex_array + (current_level)*graph.number_of_vertex , temp_vertexes);
-	thrust::adjacent_difference(thrust::device, temp_vertexes, temp_vertexes + graph.number_of_vertex, temp_vertexes);
+	copy(device, graph.full_vertex_array + (current_level-1)*graph.number_of_vertex, graph.full_vertex_array + (current_level)*graph.number_of_vertex , temp_vertexes);
+	adjacent_difference(device, temp_vertexes, temp_vertexes + graph.number_of_vertex, temp_vertexes);
 	temp_vertexes[0] = temp_vertexes[0] - starting_point;
 
-	expand(temp_vertexes, temp_vertexes + graph.number_of_vertex, thrust::make_counting_iterator<vertex>(0), process_vetxes);
+	expand(temp_vertexes, temp_vertexes + graph.number_of_vertex, make_counting_iterator<vertex>(0), process_vetxes);
 	device_free(temp_vertexes);
 
 	/*
@@ -77,10 +77,10 @@ void form_full_level_graph(Graph graph)
 	*/
 		device_ptr<vertex>  position_in_array = device_malloc<vertex>(number_edges_to_process);
 
-		thrust::transform(
-			thrust::device,
-			make_zip_iterator(thrust::make_tuple(temp_from, temp_to)),
-			make_zip_iterator(thrust::make_tuple(temp_from + number_edges_to_process,
+		transform(
+			device,
+			make_zip_iterator(make_tuple(temp_from, temp_to)),
+			make_zip_iterator(make_tuple(temp_from + number_edges_to_process,
 												temp_to + number_edges_to_process)),
 			position_in_array,
 			counter());
@@ -88,7 +88,7 @@ void form_full_level_graph(Graph graph)
 		Forming offset array from process number, step 2:
 		2 4 4 => 2 6 10
 	*/
-	thrust::inclusive_scan(thrust::device, position_in_array,
+	inclusive_scan(device, position_in_array,
 					 		    position_in_array + number_edges_to_process,
 							    position_in_array);
 
@@ -96,18 +96,18 @@ void form_full_level_graph(Graph graph)
 
 
 	device_ptr<vertex> expanded_array = device_malloc<vertex>(position_in_array[number_edges_to_process - 1]);
-	thrust::fill(thrust::device, expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], -1);
+	fill(device, expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], -1);
 	// process number contains the maximum needed memory to store if all vertexes are unique
 	device_ptr<vertex> from_vertex_array = device_malloc<vertex>(position_in_array[number_edges_to_process - 1]);
-	thrust::fill(thrust::device, from_vertex_array, from_vertex_array + position_in_array[number_edges_to_process - 1], -1);
+	fill(device, from_vertex_array, from_vertex_array + position_in_array[number_edges_to_process - 1], -1);
 
 	int prev_max_position = position_in_array[number_edges_to_process - 1];
 	//  Expand array on one level
 	//	Can contain non unique values
 
 	int grid_size = number_edges_to_process;
-	thrust::device_ptr<vertex> positions_vertex_current_level = thrust::device_malloc<vertex>(graph.number_of_vertex);
-	thrust::fill(thrust::device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
+	device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
+	fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
 
 	expander<<< 1, grid_size >>>(
 		process_vetxes, temp_from, temp_to,
@@ -128,8 +128,8 @@ void form_full_level_graph(Graph graph)
 	/*
 	*	Remove empty, non used data
 		*/
-	thrust::remove(thrust::device, expanded_array, expanded_array + prev_max_position, -1);
-	thrust::remove(thrust::device, from_vertex_array, from_vertex_array + prev_max_position, -1);
+	remove(device, expanded_array, expanded_array + prev_max_position, -1);
+	remove(device, from_vertex_array, from_vertex_array + prev_max_position, -1);
 
 	/*
 	*	Form vertex offset list
@@ -137,24 +137,24 @@ void form_full_level_graph(Graph graph)
 	//	int gridsize = position_in_array[number_edges_to_process - 1];
 
 	// STEP 2: Forming offset
-	thrust::inclusive_scan(thrust::device, positions_vertex_current_level,
+	inclusive_scan(device, positions_vertex_current_level,
 							positions_vertex_current_level + graph.number_of_vertex, positions_vertex_current_level);
 
-	thrust::device_ptr<vertex> vertex_ending_offsets = thrust::device_malloc<vertex>(graph.number_of_vertex);
+	device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
 	unifier <<<1, graph.number_of_vertex >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets);
 
 
-	thrust::device_ptr<vertex> position_in_edge_list = thrust::device_malloc<vertex>(graph.number_of_vertex);
+	device_ptr<vertex> position_in_edge_list = device_malloc<vertex>(graph.number_of_vertex);
 
-	cout << endl;
+	std::cout << endl;
 	cudaDeviceSynchronize();
 
-	thrust::copy(thrust::device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
+	copy(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
 		graph.full_vertex_array + current_level * graph.number_of_vertex);
 
 
 
-	thrust::inclusive_scan(thrust::device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
+	inclusive_scan(device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 		graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
 
@@ -214,17 +214,17 @@ void calc_L_opacity(Graph graph)
 		*	Expanding indexes. Finding break points
 		*	Example: 0 1 2 3 4 .. 20 => 0 0 1 0 0 0 1 ...
 		*/
-		thrust::copy(thrust::device, graph.full_vertex_array + (i-1)*graph.number_of_vertex, graph.full_vertex_array + (i)*graph.number_of_vertex , from_vertex);
-		thrust::adjacent_difference(thrust::device, from_vertex, from_vertex + graph.number_of_vertex, from_vertex);
+		copy(device, graph.full_vertex_array + (i-1)*graph.number_of_vertex, graph.full_vertex_array + (i)*graph.number_of_vertex , from_vertex);
+		adjacent_difference(device, from_vertex, from_vertex + graph.number_of_vertex, from_vertex);
 
 		from_vertex[0] = from_vertex[0] - starting_point;
 
-   	expand(from_vertex, from_vertex + graph.number_of_vertex, thrust::make_counting_iterator<vertex>(0), from);
+   	expand(from_vertex, from_vertex + graph.number_of_vertex, make_counting_iterator<vertex>(0), from);
 /*
-		thrust::transform(
-			thrust::device,
-			thrust::make_counting_iterator<vertex>(starting_point),
-			thrust::make_counting_iterator<vertex>(ending_point),
+		transform(
+			device,
+			make_counting_iterator<vertex>(starting_point),
+			make_counting_iterator<vertex>(ending_point),
 			from, replacer(graph.full_vertex_array + (i-1)* graph.number_of_vertex, graph.number_of_vertex)
 			);
 			*/
@@ -237,7 +237,7 @@ void calc_L_opacity(Graph graph)
 		*	Example:	0 0 1 0 0 0 1 => 0 0 1 1 1 1 2 2 2 ..
 		*/
 
-	//	thrust::inclusive_scan(thrust::device, from, from + N , from);
+	//	inclusive_scan(device, from, from + N , from);
 
 
 		/*
@@ -245,11 +245,11 @@ void calc_L_opacity(Graph graph)
 		*	Example:  0 0 1 1 1 1 2 2 2.. => 2 2 4 4 4 4 ...
 		*/
 
-		thrust::transform(
-			thrust::device,
-			thrust::make_permutation_iterator(graph.vertex_degrees, from),
-			thrust::make_permutation_iterator(graph.vertex_degrees, from + N),
-			from, thrust::identity<vertex>());
+		transform(
+			device,
+			make_permutation_iterator(graph.vertex_degrees, from),
+			make_permutation_iterator(graph.vertex_degrees, from + N),
+			from, identity<vertex>());
 
 		/*
 		*	To vector. Transform edge list into degree list =>  similar techno
@@ -257,28 +257,28 @@ void calc_L_opacity(Graph graph)
 		*/
 
 
-		thrust::device_ptr<vertex> to = device_malloc<vertex>(N);
-		//	auto iter_begin = thrust::make_transform_iterator(full_edge_array.begin(), minus_one());
-		//	auto iter_end =   thrust::make_transform_iterator(full_edge_array.begin() + N, minus_one());
+		device_ptr<vertex> to = device_malloc<vertex>(N);
+		//	auto iter_begin = make_transform_iterator(full_edge_array.begin(), minus_one());
+		//	auto iter_end =   make_transform_iterator(full_edge_array.begin() + N, minus_one());
 
-		thrust::copy(thrust::device, graph.full_edge_array + starting_point, graph.full_edge_array + ending_point, to);
+		copy(device, graph.full_edge_array + starting_point, graph.full_edge_array + ending_point, to);
 
-		thrust::transform(
-			thrust::device,
-			thrust::make_permutation_iterator(graph.vertex_degrees, to),
-			thrust::make_permutation_iterator(graph.vertex_degrees, to + N),
-			to, thrust::identity<vertex>());
+		transform(
+			device,
+			make_permutation_iterator(graph.vertex_degrees, to),
+			make_permutation_iterator(graph.vertex_degrees, to + N),
+			to, identity<vertex>());
 
 		/*
 		*  Find max and min in zip iterator of to - from pairs
 		*/
 
 
-		thrust::transform(
-			thrust::device,
-			thrust::make_zip_iterator(thrust::make_tuple(from, to)),
-			thrust::make_zip_iterator(thrust::make_tuple(from + N, to + N)),
-			thrust::make_zip_iterator(thrust::make_tuple(from, to)),
+		transform(
+			device,
+			make_zip_iterator(make_tuple(from, to)),
+			make_zip_iterator(make_tuple(from + N, to + N)),
+			make_zip_iterator(make_tuple(from, to)),
 			min_max_transform());
 
 		/*
@@ -286,7 +286,7 @@ void calc_L_opacity(Graph graph)
 		* 	Assumptions !!: Not optimum for undericted (div 2).
 		* 	Problem with same degree. Example: {4 = > 4} - must count only degree of one.
 		*/
-//		thrust::fill(thrust::device, graph.opacity_matrix, graph.opacity_matrix + graph.max_degree * graph.max_degree, 0);
+//		fill(device, graph.opacity_matrix, graph.opacity_matrix + graph.max_degree * graph.max_degree, 0);
 		int gridsize = N;
 		opacity_former<<<1, gridsize>>>(from, to, graph.degree_count, graph.opacity_matrix, graph.max_degree);
 
@@ -306,9 +306,9 @@ int main(int argc, char* argv[])
 {
 
 	Graph graph;
-	cout << "Converting to " << endl;
+	std::cout << "Converting to " << endl;
 	int l_value = std::atoi(argv[1]);
-	cout << l_value << " L value" << endl;
+	std::cout << l_value << " L value" << endl;
 	graph.L_VALUE = l_value;
 	graph.init_test_graph(); // Reading graph from the file in COO format
 	graph.convert_to_CSR();

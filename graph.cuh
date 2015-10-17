@@ -30,7 +30,6 @@
 #include "functors.cuh"
 #include "kernels.cuh"
 
-using namespace thrust;
 class Graph {
 
 public:
@@ -78,7 +77,7 @@ bool directed = false;
 		//	number_of_edges = 0;
 			// reserve maximum value needed
 			from_to_host_matrix = new vertex[number_of_vertex * number_of_vertex];
-			thrust::fill(from_to_host_matrix, from_to_host_matrix + number_of_vertex*number_of_vertex, 0);
+			fill(from_to_host_matrix, from_to_host_matrix + number_of_vertex*number_of_vertex, 0);
 			// Read a pair of vertex - vertex forming an edge
 			int a, b;
 			number_of_edges = 0;
@@ -117,36 +116,36 @@ bool directed = false;
 	************************************/
 	void print_csr_graph()
 	{
-		cout << "\n Vertex degrees :";
+		std::cout << "\n Vertex degrees :";
 		domain a = new vertex[number_of_vertex];
-		thrust::copy(vertex_degrees, vertex_degrees + number_of_vertex, a);
+		copy(vertex_degrees, vertex_degrees + number_of_vertex, a);
 		for(int i=0; i < number_of_vertex; i++)
 		{
-			 cout << a[i] << " ";
+			 std::cout << a[i] << " ";
 		}
 
-		cout << "\n Degree count :";
+		std::cout << "\n Degree count :";
 		domain b= new vertex[number_of_vertex];
-		thrust::copy(degree_count, degree_count + number_of_vertex, b);
+		copy(degree_count, degree_count + number_of_vertex, b);
 		for(int i=0; i < number_of_vertex; i++)
 		{
-			 cout << b[i] << " ";
+			 std::cout << b[i] << " ";
 		}
 
-		cout << "\n Vertex offset: ";
+		std::cout << "\n Vertex offset: ";
 		domain c = new vertex[L_VALUE* number_of_vertex];
-		thrust::copy(full_vertex_array, full_vertex_array +  L_VALUE*number_of_vertex, c);
+		copy(full_vertex_array, full_vertex_array +  L_VALUE*number_of_vertex, c);
 		for(int i=0; i < L_VALUE*number_of_vertex; i++)
 		{
-			 cout << c[i] << " ";
+			 std::cout << c[i] << " ";
 		}
 
-		cout << "\n Connected Edges ";
+		std::cout << "\n Connected Edges ";
 		domain d = new vertex[L_VALUE*2*number_of_edges];
-		thrust::copy(full_edge_array, full_edge_array + L_VALUE*2*number_of_edges, d);
+		copy(full_edge_array, full_edge_array + L_VALUE*2*number_of_edges, d);
 		for(int i=0; i < L_VALUE*2*number_of_edges; i++)
 		{
-			 cout << d[i] << " ";
+			 std::cout << d[i] << " ";
 		}
 		delete a,b,c,d;
 	}
@@ -161,14 +160,14 @@ bool directed = false;
 	{
 		printf("\n Opacity : ");
 		opacity* a = new opacity[number_of_vertex * number_of_vertex];
-		thrust::copy(opacity_matrix, opacity_matrix + max_degree*max_degree, a);
+		copy(opacity_matrix, opacity_matrix + max_degree*max_degree, a);
 		for (int i = 0; i< max_degree; i++)
 		{
 			for (int j = 0; j< max_degree; j++)
 			{
-				cout << a[i*max_degree + j] << " ";
+				std::cout << a[i*max_degree + j] << " ";
 			}
-			cout << endl;
+			std::cout << endl;
 		}
 		delete a;
 	}
@@ -182,11 +181,11 @@ bool directed = false;
 	void print_coo_graph()
 	{
 
-		cout << "From ";
-		thrust::for_each(from_array_host, from_array_host + number_of_edges, printer());
-		cout << endl << "TO ";
-		thrust::for_each(to_array_host, to_array_host + number_of_edges, printer());
-		cout << endl;
+		std::cout << "From ";
+		for_each(from_array_host, from_array_host + number_of_edges, printer());
+		std::cout << endl << "TO ";
+		for_each(to_array_host, to_array_host + number_of_edges, printer());
+		std::cout << endl;
 
 	}
 
@@ -197,9 +196,9 @@ bool directed = false;
 	{
 		// COO format
 		read_COO_format("graph.txt");
-		cout << "Reading finidhed" << endl;
-		cout << "Vertex " << number_of_vertex << endl;
-		cout << "Edges " << number_of_edges << endl;
+		std::cout << "Reading finidhed" << endl;
+		std::cout << "Vertex " << number_of_vertex << endl;
+		std::cout << "Edges " << number_of_edges << endl;
 
 	}
 
@@ -217,31 +216,31 @@ bool directed = false;
 
 		full_vertex_array = device_malloc<vertex>(num_vertex);
 
-		fill(thrust::device, full_edge_array, full_edge_array + num_edges, 0);
+		fill(device, full_edge_array, full_edge_array + num_edges, 0);
 		fill(device, full_vertex_array, full_vertex_array + num_vertex, 0);
 
 		from_array = device_malloc<vertex>(number_of_edges+1);
 		to_array = device_malloc<vertex>(number_of_edges+1);
  		domain a = new vertex[number_of_edges];
-		thrust::copy(from_array_host, from_array_host + number_of_edges, a);
-		cout << "From array: " ;
+		copy(from_array_host, from_array_host + number_of_edges, a);
+		std::cout << "From array: " ;
 		for(int i=0; i < number_of_edges; i++)
 		{
-			cout << " " << a[i];
+			std::cout << " " << a[i];
 		}
-		cout << endl;
+		std::cout << endl;
 
-		thrust::copy(to_array_host, to_array_host + number_of_edges, a);
-		cout << "TO array: " ;
+		copy(to_array_host, to_array_host + number_of_edges, a);
+		std::cout << "TO array: " ;
 		for(int i=0; i < number_of_edges; i++)
 		{
-			cout << " " << a[i];
+			std::cout << " " << a[i];
 		}
-		cout << endl;
+		std::cout << endl;
 
 			/* Copy arrays to device */
-		thrust::copy(from_array_host, from_array_host + number_of_edges, from_array);
-		thrust::copy(to_array_host, to_array_host + number_of_edges, to_array);
+		copy(from_array_host, from_array_host + number_of_edges, from_array);
+		copy(to_array_host, to_array_host + number_of_edges, to_array);
 		delete from_array_host, to_array_host;
 
 		vertex_degrees = device_malloc<vertex>(number_of_vertex);
@@ -265,64 +264,64 @@ bool directed = false;
 		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges);
 		//wrap raw pointer with a device_ptr to use with Thrust functions
 
-		thrust::counting_iterator<vertex> index_from(0);
-		thrust::counting_iterator<vertex> index_to(number_of_edges);
+		counting_iterator<vertex> index_from(0);
+		counting_iterator<vertex> index_to(number_of_edges);
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		thrust::merge_by_key(thrust::device,
+		merge_by_key(device,
 			from_array, from_array + number_of_edges,
 			to_array, to_array + number_of_edges,
 			index_from, index_to,
 			temp_indx,
 			full_edge_array);
 
-			cout << "Merge ok";
+			std::cout << "Merge ok";
 
-		thrust::sort_by_key(thrust::device,
+		sort_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
 			full_edge_array);
-			cout << "Sort ok";
+			std::cout << "Sort ok";
 		/*
 		*	Form vertex offset list
 		*/
 
-		thrust::reduce_by_key(thrust::device,
+		reduce_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
-			thrust::make_constant_iterator(1),
+			make_constant_iterator(1),
 			temp_indx,
 			full_vertex_array);
-			cout << "Reduce ok";
+			std::cout << "Reduce ok";
 		/*
 		*	Form degree vector.
 		*	Each vertex has degree
 		*	Total size: number_of_vertex
 		*/
 
-		thrust::copy(thrust::device,
+		copy(device,
 			full_vertex_array,
 			full_vertex_array + number_of_vertex,
 			vertex_degrees);
-				cout << "Copy ok";
+				std::cout << "Copy ok";
 		/*
 		*	Copy data to degree_count array
 		*/
 		int gridsize = number_of_vertex;
-		thrust::fill(thrust::device, degree_count, degree_count + number_of_vertex, 0);
-		max_degree = thrust::reduce(thrust::device, vertex_degrees, vertex_degrees + number_of_vertex, 0, thrust::maximum<vertex>());
-		cout << "Degree ok";
+		fill(device, degree_count, degree_count + number_of_vertex, 0);
+		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
+		std::cout << "Degree ok";
 
 		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count);
-			cout << "Ha gegree";
+			std::cout << "Ha gegree";
 		/*
 		*	Form vertex offset array
 		*	Result: vertex offser array => 2 4 10 ...
 		*/
-		thrust::inclusive_scan(thrust::device,
+		inclusive_scan(device,
 			 full_vertex_array,
 			 full_vertex_array+number_of_vertex,
 			 full_vertex_array);
-			 	cout << "Inclusive scan ok";
+			 	std::cout << "Inclusive scan ok";
 		// Clean temporal array
 		device_free(temp_indx);
 
@@ -331,13 +330,13 @@ bool directed = false;
 		*	Form edge list combined by vertexes
 		*/
 
-		thrust::transform(thrust::device,
+		transform(device,
 			full_edge_array, full_edge_array + 2*number_of_edges,
 			full_edge_array,
 			coo_to_csr_converter(from_array, to_array,
 				number_of_edges));
 
-				cout << "Yep ";
+				std::cout << "Yep ";
 	}
 
 	/***
@@ -353,64 +352,64 @@ bool directed = false;
 		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges+1);
 		//wrap raw pointer with a device_ptr to use with Thrust functions
 
-		thrust::counting_iterator<vertex> index_from(0);
-		thrust::counting_iterator<vertex> index_to(number_of_edges);
+		counting_iterator<vertex> index_from(0);
+		counting_iterator<vertex> index_to(number_of_edges);
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		thrust::merge_by_key(thrust::device,
+		merge_by_key(device,
 			from_array, from_array + number_of_edges,
 			to_array, to_array + number_of_edges,
 			index_from, index_to,
 			temp_indx,
 			full_edge_array);
 
-			cout << "Merge ok";
+			std::cout << "Merge ok";
 
-		thrust::sort_by_key(thrust::device,
+		sort_by_key(device,
 			temp_indx, temp_indx + number_of_edges,
 			full_edge_array);
-			cout << "Sort ok";
+			std::cout << "Sort ok";
 		/*
 		*	Form vertex offset list
 		*/
 
-		thrust::reduce_by_key(thrust::device,
+		reduce_by_key(device,
 			temp_indx, temp_indx + number_of_edges,
-			thrust::make_constant_iterator(1),
+			make_constant_iterator(1),
 			temp_indx,
 			full_vertex_array);
-			cout << "Reduce ok";
+			std::cout << "Reduce ok";
 		/*
 		*	Form degree vector.
 		*	Each vertex has degree
 		*	Total size: number_of_vertex
 		*/
 
-		thrust::copy(thrust::device,
+		copy(device,
 			full_vertex_array,
 			full_vertex_array + number_of_vertex,
 			vertex_degrees);
-				cout << "Copy ok";
+				std::cout << "Copy ok";
 		/*
 		*	Copy data to degree_count array
 		*/
 		int gridsize = number_of_vertex;
-		thrust::fill(thrust::device, degree_count, degree_count + number_of_vertex, 0);
-		max_degree = thrust::reduce(thrust::device, vertex_degrees, vertex_degrees + number_of_vertex, 0, thrust::maximum<vertex>());
-		cout << "Degree ok";
+		fill(device, degree_count, degree_count + number_of_vertex, 0);
+		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
+		std::cout << "Degree ok";
 
 		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count);
-			cout << "Ha gegree";
+			std::cout << "Ha gegree";
 		/*
 		*	Form vertex offset array
 		*	Result: vertex offser array => 2 4 10 ...
 		*/
-		thrust::inclusive_scan(thrust::device,
+		inclusive_scan(device,
 			 full_vertex_array,
 			 full_vertex_array+number_of_vertex,
 			 full_vertex_array);
-			 	cout << "Inclusive scan ok";
+			 	std::cout << "Inclusive scan ok";
 		// Clean temporal array
 		device_free(temp_indx);
 
@@ -419,12 +418,12 @@ bool directed = false;
 		*	Form edge list combined by vertexes
 		*/
 
-		thrust::transform(thrust::device,
+		transform(device,
 			full_edge_array, full_edge_array + 2*number_of_edges,
 			full_edge_array,
 			coo_to_csr_converter(from_array, to_array,
 				number_of_edges));
 
-				cout << "Yep ";
+				std::cout << "Yep ";
 	}
 };
