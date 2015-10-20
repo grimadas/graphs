@@ -273,29 +273,31 @@ bool directed;
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		merge_by_key(device,
+	/*	merge_by_key(device,
 			from_array, from_array + number_of_edges,
 			to_array, to_array + number_of_edges,
 			index_from, index_to,
 			temp_indx,
-			full_edge_array);
+			full_edge_array); */
+			// Copy from to values
+			copy(device, from_array, from_array + number_of_edges, temp_indx);
+			copy(device, to_array, to_array + number_of_edges, temp_indx + number_of_edges);
+			// Copy indexes
+			copy(device, index_from, index_from + number_of_edges, full_edge_array);
+			copy(device, index_to, index_to + number_of_edges, full_edge_array + number_of_edges);
 
-			std::cout << "Merge ok";
+			std::cout << "Merge ok : ";
 
-		sort_by_key(device,
+			sort_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
 			full_edge_array);
 			std::cout << "Sort ok: ";
+
 		/*
 		*	Form vertex offset list
 		*/
-		domain a = new vertex[2*number_of_edges];
-		copy(temp_indx, temp_indx + 2*number_of_edges, a);
-		for (int i =0; i < 2*number_of_edges; i++)
-		{
-			std::cout << a[i] << " ";
-		}
-		std::cout << std::endl;
+
+
 		degree_count_former<<<1, 2*number_of_edges>>>(temp_indx, full_vertex_array, 0);
 	/*	reduce_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
@@ -310,13 +312,7 @@ bool directed;
 				std::cout << a[i] << " ";
 			}
 			std::cout << std::endl;
-			std::cout << "Temp index : " ;
-			copy(temp_indx, temp_indx + number_of_vertex, a);
-			for (int i =0; i < number_of_vertex; i++)
-			{
-				std::cout << a[i] << " ";
-			}
-			std::cout << std::endl;
+
 		/*
 		*	Form degree vector.
 		*	Each vertex has degree
