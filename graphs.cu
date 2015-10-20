@@ -104,10 +104,11 @@ void form_full_level_graph(Graph graph)
 	//  Expand array on one level
 	//	Can contain non unique values
 	std::cout << "Ok in 6" << std::endl;
-	int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;;
+
 	device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
 	fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
 
+	int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;
 	expander<<< grid_size, BLOCK_SIZE >>>(
 		process_vetxes, temp_from, temp_to,
 		graph.full_vertex_array, graph.full_edge_array,
@@ -142,7 +143,8 @@ void form_full_level_graph(Graph graph)
 							positions_vertex_current_level + graph.number_of_vertex, positions_vertex_current_level);
 
 	device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
-	unifier <<<1, graph.number_of_vertex >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets);
+	grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
+	unifier <<<grid_size, BLOCK_SIZE >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets, graph.number_of_edges);
 
 
 	device_ptr<vertex> position_in_edge_list = device_malloc<vertex>(graph.number_of_vertex);
@@ -159,9 +161,8 @@ void form_full_level_graph(Graph graph)
 		graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
 		std::cout << "Ok in 12" << std::endl;
-	grid_size = graph.number_of_vertex;
-
-	edge_copier<<<1, grid_size>>>(
+	grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
+	edge_copier<<<grid_size, BLOCK_SIZE>>>(
 		expanded_array,
 		positions_vertex_current_level,
 		vertex_ending_offsets,
@@ -185,7 +186,8 @@ void form_full_level_graph(Graph graph)
 
 void ordering_function(Graph graph)
 {
-	sorter<<<1, graph.number_of_vertex>>>(graph.full_edge_array, graph.full_vertex_array);
+	int	gridsize = (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
+	sorter<<<gridsize, BLOCK_SIZE>>>(graph.full_edge_array, graph.full_vertex_array, graph.number_of_vertex);
 }
 
 
@@ -222,7 +224,7 @@ void calc_L_opacity(Graph graph)
 
 		from_vertex[0] = from_vertex[0] - starting_point;
 
-   	expand(from_vertex, from_vertex + graph.number_of_vertex, make_counting_iterator<vertex>(0), from);
+   		expand(from_vertex, from_vertex + graph.number_of_vertex, make_counting_iterator<vertex>(0), from);
 /*
 		transform(
 			device,
@@ -290,8 +292,8 @@ void calc_L_opacity(Graph graph)
 		* 	Problem with same degree. Example: {4 = > 4} - must count only degree of one.
 		*/
 //		fill(device, graph.opacity_matrix, graph.opacity_matrix + graph.max_degree * graph.max_degree, 0);
-		int gridsize = N;
-		opacity_former<<<1, gridsize>>>(from, to, graph.degree_count, graph.opacity_matrix, graph.max_degree);
+		int gridsize =(N + BLOCK_SIZE - 1) / BLOCK_SIZE;
+		opacity_former<<<gridsize, BLOCK_SIZE>>>(from, to, graph.degree_count, graph.opacity_matrix, graph.max_degree, N);
 
 		/*
 		* Sort by key. Indexes (values) and degrees (keys)
@@ -323,16 +325,16 @@ int main(int argc, char* argv[])
 //	DWORD startTime = timeGetTime();
 
 	form_full_level_graph(graph);
-//	calc_L_opacity(graph);
+	calc_L_opacity(graph);
 
 //	unsigned int endTime = timeGetTime();
 //	unsigned int gpu_time = unsigned int(endTime - startTime);
 //	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
 //	DestroyMMTimer(wTimerRes, init);
 
-//	graph.print_opacity_matrix();
 
 	graph.print_csr_graph();
+	graph.print_opacity_matrix();
 
 
 	return 0;

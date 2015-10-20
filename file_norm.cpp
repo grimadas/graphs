@@ -2,16 +2,17 @@
 #include <iostream>
 #include <string.h>
 #include <vector>
+#include <algorithm>
 
 struct value_comparer {
     bool operator()(const std::pair<int,int> &left, const std::pair<int,int> &right) {
-        return left.first < right.first;
+        return left.second < right.second;
     }
 };
 
 struct key_comparer {
     bool operator()(const std::pair<int,int> &left, const std::pair<int,int> &right) {
-        return left.second < right.second;
+        return left.first < right.first;
     }
 };
 
@@ -36,7 +37,7 @@ int main(int argc, char* argv[])
         {
             vertex = b;
         }
-        items.push_back(std::make_pair(a,b));
+        items.push_back(std::make_pair(std::min(a,b),std::max(a,b)));
         edges++;
     }
     myfile.close();
@@ -52,12 +53,13 @@ int main(int argc, char* argv[])
     std::ofstream out_put_file;
     char* out_name = argv[2];
     out_put_file.open(out_name);
-    out_put_file << vertex << " " << edges << "\n";
+    out_put_file << vertex+1 << " " << edges << "\n";
     for (int i=0; i< edges; i++)
     {
         out_put_file << items[i].first << " " << items[i].second << "\n";
 
     }
     out_put_file.close();
+    std::cout << "Done.";
     return 0;
 }
