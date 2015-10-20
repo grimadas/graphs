@@ -69,7 +69,7 @@ bool directed;
 	*		input:
 	*					string file_name
 	***********************************************/
-	void read_COO_format(char* file_name)
+	void read_COO_format(const char* file_name)
 	{
 
 			std::ifstream myfile;
@@ -306,6 +306,7 @@ bool directed;
 			full_vertex_array);
 			std::cout << "Reduce ok : ";
 */
+			domain a = new vertex[number_of_vertex];
 			copy(full_vertex_array, full_vertex_array + number_of_vertex, a);
 			for (int i =0; i < number_of_vertex; i++)
 			{
