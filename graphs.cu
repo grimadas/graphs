@@ -92,9 +92,7 @@ void form_full_level_graph(Graph graph)
 	inclusive_scan(device, position_in_array,
 					 		    position_in_array + number_edges_to_process,
 							    position_in_array);
-
-std::cout << "Ok in 5" << std::endl;
-
+	std::cout << "Ok in 5" << std::endl;
 
 	device_ptr<vertex> expanded_array = device_malloc<vertex>(position_in_array[number_edges_to_process - 1]);
 	fill(device, expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], -1);
@@ -105,12 +103,12 @@ std::cout << "Ok in 5" << std::endl;
 	int prev_max_position = position_in_array[number_edges_to_process - 1];
 	//  Expand array on one level
 	//	Can contain non unique values
-std::cout << "Ok in 6" << std::endl;
-	int grid_size = number_edges_to_process;
+	std::cout << "Ok in 6" << std::endl;
+	int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;;
 	device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
 	fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
 
-	expander<<< 1, grid_size >>>(
+	expander<<< grid_size, BLOCK_SIZE >>>(
 		process_vetxes, temp_from, temp_to,
 		graph.full_vertex_array, graph.full_edge_array,
 		position_in_array,
@@ -325,14 +323,14 @@ int main(int argc, char* argv[])
 //	DWORD startTime = timeGetTime();
 
 	form_full_level_graph(graph);
-	calc_L_opacity(graph);
+//	calc_L_opacity(graph);
 
 //	unsigned int endTime = timeGetTime();
 //	unsigned int gpu_time = unsigned int(endTime - startTime);
 //	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
 //	DestroyMMTimer(wTimerRes, init);
 
-	graph.print_opacity_matrix();
+//	graph.print_opacity_matrix();
 
 	graph.print_csr_graph();
 

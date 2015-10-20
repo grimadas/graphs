@@ -12,20 +12,26 @@
 *   Input:    device_ptr<vertex> vertex_degrees (from_where),
 *             device_ptr<vertex> degree_count (where_to_add),
 *              int added_value - offset value.
-*              
+*
 *   Output:   degree_count - with number of occurance
 */
 __global__ void degree_count_former
 (
   device_ptr<vertex> vertex_degrees,
   device_ptr<vertex> degree_count,
+  int edges_to_process,
   int added_value)
 {
   	int i = blockIdx.x*blockDim.x + threadIdx.x;
-    vertex current_pos = vertex_degrees[i];
-    vertex* k = raw_pointer_cast(degree_count + current_pos - added_value );
-    atomicAdd(k, 1);
+    if (i < edges_to_process)
+    {
+      vertex current_pos = vertex_degrees[i];
+      vertex* k = raw_pointer_cast(degree_count + current_pos - added_value);
+      atomicAdd(k, 1);
+    }
+
 }
+
 
 
 /*
