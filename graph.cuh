@@ -69,7 +69,7 @@ bool directed;
 	*		input:
 	*					string file_name
 	***********************************************/
-	void read_COO_format(char* file_name)
+	void read_COO_format(const char* file_name)
 	{
 
 			std::ifstream myfile;
@@ -249,6 +249,7 @@ bool directed;
 		degree_count = device_malloc<vertex>(number_of_vertex);
 		// Init opacity matrix TODO: memory if n^2
 		opacity_matrix = device_malloc<opacity>(number_of_vertex*number_of_vertex);
+		fill(device, opacity_matrix, opacity_matrix + number_of_vertex*number_of_vertex, 0);
 	}
 
 	/********************************************************************
@@ -264,6 +265,7 @@ bool directed;
 		*/
 		init_arrays();
 		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges);
+		device_vector<vertex> temp_index(2*number_of_edges);
 		//wrap raw pointer with a device_ptr to use with Thrust functions
 
 		counting_iterator<vertex> index_from(0);
@@ -271,29 +273,48 @@ bool directed;
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		merge_by_key(device,
+	/*	merge_by_key(device,
 			from_array, from_array + number_of_edges,
 			to_array, to_array + number_of_edges,
 			index_from, index_to,
 			temp_indx,
-			full_edge_array);
+			full_edge_array); */
+			// Copy from to values
+			copy(device, from_array, from_array + number_of_edges, temp_indx);
+			copy(device, to_array, to_array + number_of_edges, temp_indx + number_of_edges);
+			// Copy indexes
+			copy(device, index_from, index_from + number_of_edges, full_edge_array);
+			copy(device, index_to, index_to + number_of_edges, full_edge_array + number_of_edges);
 
-			std::cout << "Merge ok";
+			std::cout << "Merge ok : ";
 
-		sort_by_key(device,
+			sort_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
 			full_edge_array);
-			std::cout << "Sort ok";
+			std::cout << "Sort ok: ";
+
 		/*
 		*	Form vertex offset list
 		*/
 
-		reduce_by_key(device,
+		int gridsize =(2*number_of_edges + BLOCK_SIZE - 1) / BLOCK_SIZE;
+		degree_count_former<<<1, 2*number_of_edges>>>(temp_indx, full_vertex_array, 0);
+	/*	reduce_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
 			make_constant_iterator(1),
 			temp_indx,
 			full_vertex_array);
-			std::cout << "Reduce ok";
+			std::cout << "Reduce ok : ";
+*/
+			std::cout << "VERTEX: ";
+			domain a = new vertex[number_of_vertex];
+			copy(full_vertex_array, full_vertex_array + number_of_vertex, a);
+			for (int i =0; i < number_of_vertex; i++)
+			{
+				std::cout << a[i] << " ";
+			}
+			std::cout << std::endl;
+
 		/*
 		*	Form degree vector.
 		*	Each vertex has degree
@@ -308,12 +329,12 @@ bool directed;
 		/*
 		*	Copy data to degree_count array
 		*/
-		int gridsize = number_of_vertex;
+		gridsize = number_of_vertex;
 		fill(device, degree_count, degree_count + number_of_vertex, 0);
 		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
 		std::cout << "Degree ok";
-
-		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count);
+		// Offset is 1
+		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count, 1);
 			std::cout << "Ha gegree";
 		/*
 		*	Form vertex offset array
@@ -401,7 +422,7 @@ bool directed;
 		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
 		std::cout << "Degree ok";
 
-		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count);
+		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count, 1);
 			std::cout << "Ha gegree";
 		/*
 		*	Form vertex offset array

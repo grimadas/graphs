@@ -71,6 +71,7 @@ void inline read_COO_format(char* file_name, int*& from_array_host, int*& to_arr
 
 
 int main(){
+
   unsigned long long t1_time, t2_time;
     t1_time = dtime_usec(0);
     std::ifstream myfile;
