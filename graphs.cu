@@ -5,7 +5,7 @@
 */
 //#include "apsp.cuh"
 #include "graph.cuh"
-#include "headers.h"
+
 
 
 
@@ -310,8 +310,12 @@ int main(int argc, char* argv[])
 	std::cout << l_value << " L value" << std::endl;
 	graph.L_VALUE = l_value;
 	graph.init_test_graph(); // Reading graph from the file in COO format
+	std::cout << "Init ready " << std::endl;
 	graph.convert_to_CSR();
+	graph.print_csr_graph();
 	ordering_function(graph);
+	std::cout << "ORDER ready " << std::endl;
+	graph.print_csr_graph();
 
 //	UINT wTimerRes = 0;
 //	bool init = InitMMTimer(wTimerRes);

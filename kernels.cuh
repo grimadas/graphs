@@ -9,19 +9,21 @@
 /*
 *   Count occurance of degree in vertex_degrees and puts data in degree_count.
 *   Puts max_degree in value.
-*   Input:    device_ptr<vertex> vertex_degrees,
-*             device_ptr<vertex> degree_count,
-*              int &max_degree
+*   Input:    device_ptr<vertex> vertex_degrees (from_where),
+*             device_ptr<vertex> degree_count (where_to_add),
+*              int added_value - offset value.
+*              
 *   Output:   degree_count - with number of occurance
 */
 __global__ void degree_count_former
 (
   device_ptr<vertex> vertex_degrees,
-  device_ptr<vertex> degree_count)
+  device_ptr<vertex> degree_count,
+  int added_value)
 {
   	int i = blockIdx.x*blockDim.x + threadIdx.x;
     vertex current_pos = vertex_degrees[i];
-    vertex* k = raw_pointer_cast(degree_count + current_pos -1 );
+    vertex* k = raw_pointer_cast(degree_count + current_pos - added_value );
     atomicAdd(k, 1);
 }
 
