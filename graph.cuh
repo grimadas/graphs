@@ -297,7 +297,7 @@ bool directed;
 		*	Form vertex offset list
 		*/
 
-
+		int gridsize =(2*number_of_edges + BLOCK_SIZE - 1) / BLOCK_SIZE;
 		degree_count_former<<<1, 2*number_of_edges>>>(temp_indx, full_vertex_array, 0);
 	/*	reduce_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
@@ -306,6 +306,7 @@ bool directed;
 			full_vertex_array);
 			std::cout << "Reduce ok : ";
 */
+			std::cout << "VERTEX: ";
 			domain a = new vertex[number_of_vertex];
 			copy(full_vertex_array, full_vertex_array + number_of_vertex, a);
 			for (int i =0; i < number_of_vertex; i++)
@@ -328,7 +329,7 @@ bool directed;
 		/*
 		*	Copy data to degree_count array
 		*/
-		int gridsize = number_of_vertex;
+		gridsize = number_of_vertex;
 		fill(device, degree_count, degree_count + number_of_vertex, 0);
 		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
 		std::cout << "Degree ok";

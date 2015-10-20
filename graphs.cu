@@ -39,6 +39,7 @@ void form_full_level_graph(Graph graph)
 	copy(device,
 		graph.full_edge_array + starting_point, graph.full_edge_array + ending_point,
 		 temp_from);
+	std::cout << "Ok in 1" << std::endl;
 		//
 		transform(device,
 			temp_from, temp_from + number_edges_to_process,
@@ -56,7 +57,7 @@ void form_full_level_graph(Graph graph)
 		make_permutation_iterator(graph.full_vertex_array, temp_from),
 		make_permutation_iterator(graph.full_vertex_array,
 		temp_from + number_edges_to_process), temp_from);
-
+		std::cout << "Ok in 2" << std::endl;
 
 	/*
 	*	Array of vertex, from which we will expand. Proces vertex
@@ -69,7 +70,7 @@ void form_full_level_graph(Graph graph)
 
 	expand(temp_vertexes, temp_vertexes + graph.number_of_vertex, make_counting_iterator<vertex>(0), process_vetxes);
 	device_free(temp_vertexes);
-
+	std::cout << "Ok in 3" << std::endl;
 	/*
 		Offset array, step 1:
 		Result <- Temp_TO - Temp_FROM
@@ -83,6 +84,7 @@ void form_full_level_graph(Graph graph)
 												temp_to + number_edges_to_process)),
 			position_in_array,
 			counter());
+			std::cout << "Ok in 4" << std::endl;
 	/*
 		Forming offset array from process number, step 2:
 		2 4 4 => 2 6 10
@@ -91,7 +93,7 @@ void form_full_level_graph(Graph graph)
 					 		    position_in_array + number_edges_to_process,
 							    position_in_array);
 
-
+std::cout << "Ok in 5" << std::endl;
 
 
 	device_ptr<vertex> expanded_array = device_malloc<vertex>(position_in_array[number_edges_to_process - 1]);
@@ -103,7 +105,7 @@ void form_full_level_graph(Graph graph)
 	int prev_max_position = position_in_array[number_edges_to_process - 1];
 	//  Expand array on one level
 	//	Can contain non unique values
-
+std::cout << "Ok in 6" << std::endl;
 	int grid_size = number_edges_to_process;
 	device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
 	fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
@@ -117,9 +119,10 @@ void form_full_level_graph(Graph graph)
 		graph.number_of_vertex,
 		current_level,
 		positions_vertex_current_level);
+		std::cout << "Ok in 7" << std::endl;
 	//cudaThreadSynchronize();
 	cudaDeviceSynchronize();
-
+	std::cout << "Ok in 9" << std::endl;
 	device_free(temp_from);
 	device_free(temp_to);
 	device_free(process_vetxes);
@@ -129,6 +132,7 @@ void form_full_level_graph(Graph graph)
 		*/
 	remove(device, expanded_array, expanded_array + prev_max_position, -1);
 	remove(device, from_vertex_array, from_vertex_array + prev_max_position, -1);
+	std::cout << "Ok in 10" << std::endl;
 
 	/*
 	*	Form vertex offset list
@@ -147,7 +151,7 @@ void form_full_level_graph(Graph graph)
 
 	std::cout << std::endl;
 	cudaDeviceSynchronize();
-
+	std::cout << "Ok in 11" << std::endl;
 	copy(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
 		graph.full_vertex_array + current_level * graph.number_of_vertex);
 
@@ -156,7 +160,7 @@ void form_full_level_graph(Graph graph)
 	inclusive_scan(device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 		graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
-
+		std::cout << "Ok in 12" << std::endl;
 	grid_size = graph.number_of_vertex;
 
 	edge_copier<<<1, grid_size>>>(
@@ -169,9 +173,11 @@ void form_full_level_graph(Graph graph)
 		graph.number_of_vertex);
 
 	cudaDeviceSynchronize();
+	std::cout << "Ok in 13" << std::endl;
 	device_free(expanded_array);
 	device_free(positions_vertex_current_level);
 	device_free(vertex_ending_offsets);
+	std::cout << "Ok in 14" << std::endl;
 
 
 	}
@@ -312,10 +318,7 @@ int main(int argc, char* argv[])
 	graph.init_test_graph(); // Reading graph from the file in COO format
 	std::cout << "Init ready " << std::endl;
 	graph.convert_to_CSR();
-	graph.print_csr_graph();
 	ordering_function(graph);
-	std::cout << "ORDER ready " << std::endl;
-	graph.print_csr_graph();
 
 //	UINT wTimerRes = 0;
 //	bool init = InitMMTimer(wTimerRes);
