@@ -179,9 +179,9 @@ void form_full_level_graph(Graph graph)
 			std::cout << prints[i]<<" ";
 	}
 
-	copy(expanded_array, expanded_array + 100, prints);
+	copy(expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], prints);
 	std::cout <<std::endl << "Exapnded array now " << std::endl;
-	for(int i=0; i < 100; i++)
+	for(int i=0; i < position_in_array[number_edges_to_process - 1]; i++)
 	{
 			std::cout << prints[i]<<" ";
 	}

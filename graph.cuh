@@ -142,7 +142,7 @@ bool directed;
 		}
 
 		std::cout << "\n Connected Edges ";
-		domain d = new vertex[3*L_VALUE*2*number_of_edges];
+		domain d = new vertex[10*L_VALUE*2*number_of_edges];
 		copy(full_edge_array, full_edge_array + 3*L_VALUE*2*number_of_edges, d);
 		for(int i=0; i < 3*L_VALUE*2*number_of_edges; i++)
 		{
@@ -209,7 +209,7 @@ bool directed;
 	*****************************************/
 	void init_arrays()
 	{
-		int avg_degree = 3;
+		int avg_degree = 10;
 		int num_edges=2 *avg_degree* L_VALUE*number_of_edges;
 		int num_vertex=L_VALUE*number_of_vertex;
 	//	if (!directed)
