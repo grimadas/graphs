@@ -92,6 +92,16 @@ void form_full_level_graph(Graph graph)
 	inclusive_scan(device, position_in_array,
 					 		    position_in_array + number_edges_to_process,
 							    position_in_array);
+
+	//TODO: check position in array
+	domain prints = new vertex[number_edges_to_process];
+	copy(position_in_array, position_in_array + number_edges_to_process, prints);
+	std::cout << "Position IN ARRat " << std::endl;
+	for(int i=0; i < number_edges_to_process; i++)
+	{
+		std::cout << prints[i]<<" ";
+	}
+
 	std::cout << "Ok in 5" << std::endl;
 
 	device_ptr<vertex> expanded_array = device_malloc<vertex>(position_in_array[number_edges_to_process - 1]);
@@ -109,6 +119,7 @@ void form_full_level_graph(Graph graph)
 	fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
 
 	int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;
+	// Expand here and put to expanded_array
 	expander<<< grid_size, BLOCK_SIZE >>>(
 		process_vetxes, temp_from, temp_to,
 		graph.full_vertex_array, graph.full_edge_array,
@@ -118,7 +129,8 @@ void form_full_level_graph(Graph graph)
 		graph.number_of_vertex,
 		current_level,
 		positions_vertex_current_level);
-		std::cout << "Ok in 7" << std::endl;
+
+	std::cout << "Ok in 7" << std::endl;
 	//cudaThreadSynchronize();
 	cudaDeviceSynchronize();
 	std::cout << "Ok in 9" << std::endl;
@@ -132,7 +144,13 @@ void form_full_level_graph(Graph graph)
 	remove(device, expanded_array, expanded_array + prev_max_position, -1);
 	remove(device, from_vertex_array, from_vertex_array + prev_max_position, -1);
 	std::cout << "Ok in 10" << std::endl;
-
+	prints = new vertex[position_in_array[number_edges_to_process-1]];
+	copy(expanded_array, expanded_array + position_in_array[number_edges_to_process-1], prints);
+	std::cout << "After expanded : " << std::endl;
+	for(int i=0; i <  position_in_array[number_edges_to_process-1]; i++)
+	{
+		std::cout << prints[i]<<" ";
+	}
 	/*
 	*	Form vertex offset list
 	*/
@@ -142,15 +160,32 @@ void form_full_level_graph(Graph graph)
 	inclusive_scan(device, positions_vertex_current_level,
 							positions_vertex_current_level + graph.number_of_vertex, positions_vertex_current_level);
 
+
+	copy(positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, prints);
+	std::cout << "Position after expanded : " << std::endl;
+	for(int i=0; i < graph.number_of_vertex; i++)
+	{
+			std::cout << prints[i]<<" ";
+	}
+
 	device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
 	grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
 	unifier <<<grid_size, BLOCK_SIZE >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets, graph.number_of_edges);
-
-
-	device_ptr<vertex> position_in_edge_list = device_malloc<vertex>(graph.number_of_vertex);
-
-	std::cout << std::endl;
 	cudaDeviceSynchronize();
+	copy(vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex, prints);
+	std::cout << "vertex_ending_offsets : " << std::endl;
+	for(int i=0; i < graph.number_of_vertex; i++)
+	{
+			std::cout << prints[i]<<" ";
+	}
+
+	copy(expanded_array, expanded_array + 100, prints);
+	std::cout <<std::endl << "Exapnded array now " << std::endl;
+	for(int i=0; i < 100; i++)
+	{
+			std::cout << prints[i]<<" ";
+	}
+
 	std::cout << "Ok in 11" << std::endl;
 	copy(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
 		graph.full_vertex_array + current_level * graph.number_of_vertex);
@@ -160,7 +195,7 @@ void form_full_level_graph(Graph graph)
 	inclusive_scan(device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 		graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
-		std::cout << "Ok in 12" << std::endl;
+	std::cout << "Ok in 12" << std::endl;
 	grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
 	edge_copier<<<grid_size, BLOCK_SIZE>>>(
 		expanded_array,

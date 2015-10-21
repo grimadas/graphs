@@ -142,8 +142,8 @@ bool directed;
 		}
 
 		std::cout << "\n Connected Edges ";
-		domain d = new vertex[L_VALUE*2*number_of_edges];
-		copy(full_edge_array, full_edge_array + L_VALUE*2*number_of_edges, d);
+		domain d = new vertex[3*L_VALUE*2*number_of_edges];
+		copy(full_edge_array, full_edge_array + 3*L_VALUE*2*number_of_edges, d);
 		for(int i=0; i < 3*L_VALUE*2*number_of_edges; i++)
 		{
 			 std::cout << d[i] << " ";
