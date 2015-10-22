@@ -47,7 +47,8 @@ __global__  void expander(
 	device_ptr<vertex> position_in_array,
 	device_ptr<vertex> expanded_array, device_ptr<vertex> from_vertex_array,
 	int number_edges_to_process, int number_of_vertex,
-	int current_level, device_ptr<vertex> vertex_offset)
+	int current_level,
+  device_ptr<vertex> vertex_offset)
 {
 
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -86,9 +87,10 @@ __global__  void expander(
     		make_constant_iterator(starting),
     		make_constant_iterator(starting) + real_size,
     		from_vertex_array + offset_to_put_exp_array);
+
     	vertex* k = raw_pointer_cast(vertex_offset + starting);
     	atomicAdd(k, real_size);
-
+      /*
     	if (planed_size != real_size)
     		if (idx != 0)
     	{
@@ -101,6 +103,7 @@ __global__  void expander(
   			transform(device, position_in_array,
   				position_in_array + number_edges_to_process, position_in_array, minus_value(planed_size - real_size));
   		}
+      */
     }
 }
 

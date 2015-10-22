@@ -61,6 +61,7 @@ device_ptr<opacity> opacity_matrix;
 
 int number_of_vertex;
 int number_of_edges;
+int edge_list_size;
 
 bool directed;
 
@@ -142,9 +143,9 @@ bool directed;
 		}
 
 		std::cout << "\n Connected Edges ";
-		domain d = new vertex[10*L_VALUE*2*number_of_edges];
-		copy(full_edge_array, full_edge_array + 3*L_VALUE*2*number_of_edges, d);
-		for(int i=0; i < 3*L_VALUE*2*number_of_edges; i++)
+		domain d = new vertex[edge_list_size];
+		copy(full_edge_array, full_edge_array + edge_list_size, d);
+		for(int i=0; i < edge_list_size; i++)
 		{
 			 std::cout << d[i] << " ";
 		}
@@ -209,14 +210,13 @@ bool directed;
 	*****************************************/
 	void init_arrays()
 	{
-		int avg_degree = 10;
-		int num_edges=2 *avg_degree* L_VALUE*number_of_edges;
+		int num_edges=2 *number_of_edges*7*L_VALUE;
 		int num_vertex=L_VALUE*number_of_vertex;
 	//	if (!directed)
 	//			num_edges *= 2; // double edges
 
 		full_edge_array = device_malloc<vertex>(num_edges);
-
+		edge_list_size = num_edges;
 		full_vertex_array = device_malloc<vertex>(num_vertex);
 
 		fill(device, full_edge_array, full_edge_array + num_edges, -1);
