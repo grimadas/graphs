@@ -2,8 +2,8 @@
 *   Library headers
 *   @author = Bulat Nasrulin
 */
-
-
+#ifndef HEADER_USED
+#define HEADER_USED
 // Thrust includes
 #include <thrust/version.h>
 #include <thrust/host_vector.h>
@@ -42,6 +42,11 @@
 #include <cassert>
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+
+// Time
+
+#include <time.h>
+#include <sys/time.h>
 
 #define pb push_back
 #define all(c) (c).begin(),(c).end()
@@ -82,3 +87,14 @@ typedef std::pair<std::pair<int,int>,int> Piii;
 #define field  vertex
 
 #define opacity float
+
+#define USECPSEC 1000000ULL 
+
+
+unsigned long long dtime_usec(unsigned long long start){
+
+  timeval tv;
+  gettimeofday(&tv, 0);
+  return ((tv.tv_sec*USECPSEC)+tv.tv_usec)-start;
+}
+#endif

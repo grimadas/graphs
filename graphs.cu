@@ -198,17 +198,6 @@ void form_full_level_graph(Graph graph)
 			inclusive_scan(device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 				graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
-			vertex new_size = graph.full_vertex_array[(current_level + 1)*graph.number_of_vertex - 1];
-		//	device_ptr<vertex> new_edge_data = device_malloc<vertex>(graph.edge_list_size);
-		//	copy(device, graph.full_edge_array, graph.full_edge_array + graph.edge_list_size, new_edge_data);
-		//	device_free(graph.full_edge_array);
-		//	graph.full_edge_array = device_malloc<vertex>(new_size);
-		//	copy(device, new_edge_data, new_edge_data + graph.edge_list_size, graph.full_edge_array);
-			graph.edge_list_size = new_size;
-		//	device_free(new_edge_data);
-
-			std::cout << "New size is " << new_size << std::endl;
-			graph.print_csr_graph();
 			std::cout << "Ok in 12" << std::endl;
 			grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
 			edge_copier<<<grid_size, BLOCK_SIZE>>>(
@@ -367,6 +356,8 @@ int main(int argc, char* argv[])
 {
 
 	Graph graph;
+	unsigned long long t1_time, t2_time, t3_time;
+	t1_time = dtime_usec(0);
 	std::cout << "Converting to " << std::endl;
 	int l_value = std::atoi(argv[1]);
 	std::cout << l_value << " L value" << std::endl;
@@ -375,13 +366,17 @@ int main(int argc, char* argv[])
 	std::cout << "Init ready " << std::endl;
 	graph.convert_to_CSR();
 	ordering_function(graph);
+	t1_time = dtime_usec(t1_time);
 
 //	UINT wTimerRes = 0;
 //	bool init = InitMMTimer(wTimerRes);
 //	DWORD startTime = timeGetTime();
-
+	t2_time = dtime_usec(0);
 	form_full_level_graph(graph);
+	t2_time = dtime_usec(t2_time);
+	t3_time = dtime_usec(0);
 	calc_L_opacity(graph);
+	t3_time = dtime_usec(t3_time);
 
 //	unsigned int endTime = timeGetTime();
 //	unsigned int gpu_time = unsigned int(endTime - startTime);
@@ -392,6 +387,8 @@ int main(int argc, char* argv[])
 	graph.print_csr_graph();
 	graph.print_opacity_matrix();
 
+	std::cout << "Graph preprocessing " << t1_time/(float)USECPSEC << " Graph L - apsp " << t2_time/(float)USECPSEC
+	<< " Opacity matrix calculation " << t3_time/(float)USECPSEC <<std::endl;
 
 	return 0;
 }

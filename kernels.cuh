@@ -33,7 +33,6 @@ __global__ void degree_count_former
 }
 
 
-
 /*
 *	Expand array according to it's from and to values
 *	Input : device_ptr<vertex> expanded_array
@@ -180,7 +179,7 @@ __global__ void edge_copier(
 	device_ptr<vertex> full_vertex_array,
 	device_ptr<vertex> full_edge_array,
 	int L_VALUE,
-	int number_of_vertex)
+	int number_of_vertex )
 
 {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -192,6 +191,7 @@ __global__ void edge_copier(
   		start_point = positions_vertex_current_level[idx - 1];
 
   	}
+
   	int end_point = start_point + current_ending_offset[idx];
 
   	int edge_put_list_start = full_vertex_array[L_VALUE *number_of_vertex + idx - 1];

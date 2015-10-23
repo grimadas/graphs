@@ -61,7 +61,6 @@ device_ptr<opacity> opacity_matrix;
 
 int number_of_vertex;
 int number_of_edges;
-int edge_list_size;
 
 bool directed;
 
@@ -143,9 +142,10 @@ bool directed;
 		}
 
 		std::cout << "\n Connected Edges ";
-		domain d = new vertex[edge_list_size];
-		copy(full_edge_array, full_edge_array + edge_list_size, d);
-		for(int i=0; i < edge_list_size; i++)
+		int size_to_print = full_vertex_array[L_VALUE*number_of_vertex - 1];
+		domain d = new vertex[size_to_print];
+		copy(full_edge_array, full_edge_array + size_to_print, d);
+		for(int i=0; i < size_to_print; i++)
 		{
 			 std::cout << d[i] << " ";
 		}
@@ -210,17 +210,6 @@ bool directed;
 	*****************************************/
 	void init_arrays()
 	{
-		int num_edges=2 *number_of_edges*7*L_VALUE;
-		int num_vertex=L_VALUE*number_of_vertex;
-	//	if (!directed)
-	//			num_edges *= 2; // double edges
-
-		full_edge_array = device_malloc<vertex>(num_edges);
-		edge_list_size = num_edges;
-		full_vertex_array = device_malloc<vertex>(num_vertex);
-
-		fill(device, full_edge_array, full_edge_array + num_edges, -1);
-		fill(device, full_vertex_array, full_vertex_array + num_vertex, 0);
 
 		from_array = device_malloc<vertex>(number_of_edges+1);
 		to_array = device_malloc<vertex>(number_of_edges+1);
@@ -251,6 +240,15 @@ bool directed;
 		// Init opacity matrix TODO: memory if n^2
 		opacity_matrix = device_malloc<opacity>(number_of_vertex*number_of_vertex);
 		fill(device, opacity_matrix, opacity_matrix + number_of_vertex*number_of_vertex, 0);
+
+
+		int num_vertex=L_VALUE*number_of_vertex;
+	//	if (!directed)
+	//			num_edges *= 2; // double edges
+		full_vertex_array = device_malloc<vertex>(num_vertex);
+		fill(device, full_vertex_array, full_vertex_array + num_vertex, 0);
+
+
 	}
 
 	/********************************************************************
@@ -266,6 +264,7 @@ bool directed;
 		*/
 		init_arrays();
 		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges);
+		device_ptr<vertex> temp_indx2 = device_malloc<vertex>(2*number_of_edges);
 
 		//wrap raw pointer with a device_ptr to use with Thrust functions
 		fill(device, temp_indx, temp_indx + 2*number_of_edges, 0);
@@ -284,14 +283,14 @@ bool directed;
 			copy(device, from_array, from_array + number_of_edges, temp_indx);
 			copy(device, to_array, to_array + number_of_edges, temp_indx + number_of_edges);
 			// Copy indexes
-			copy(device, index_from, index_from + number_of_edges, full_edge_array);
-			copy(device, index_to, index_to + number_of_edges, full_edge_array + number_of_edges);
+			copy(device, index_from, index_from + number_of_edges, temp_indx2);
+			copy(device, index_to, index_to + number_of_edges, temp_indx2 + number_of_edges);
 
 			std::cout << "Merge ok : ";
 
 			sort_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
-			full_edge_array);
+			temp_indx2);
 			std::cout << "Sort ok: ";
 
 		/*
@@ -359,93 +358,15 @@ bool directed;
 		// Clean temporal array
 		device_free(temp_indx);
 
-		/*
-		*	Transform the edge list array according to they paired edge.
-		*	Form edge list combined by vertexes
-		*/
 
-		transform(device,
-			full_edge_array, full_edge_array + 2*number_of_edges,
-			full_edge_array,
-			coo_to_csr_converter(from_array, to_array,
-				number_of_edges));
+		int num_edges=number_of_vertex*max_degree*L_VALUE;
+		if (num_edges > number_of_vertex*number_of_vertex)
+		{
+			num_edges = number_of_vertex*number_of_vertex;
+		}
+		full_edge_array = device_malloc<vertex>(num_edges);
+		fill(device, full_edge_array, full_edge_array + num_edges, -1);
 
-				std::cout << "Yep ";
-	}
-
-	/***
-	*  Converting from COO (edge list) format to CSR (adjacency list) format
-	*  Run it after someting is in COO list (from and to).
-	*/
-	void convert_to_CSR_no_doubles()
-	{
-		/*
-		* First combine and sort data from and to array - this will be our new edge_list acording to their indexes
-		*/
-		init_arrays();
-		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges+1);
-		//wrap raw pointer with a device_ptr to use with Thrust functions
-
-		counting_iterator<vertex> index_from(0);
-		counting_iterator<vertex> index_to(number_of_edges);
-
-		//	Merging from and to arrays are keys,
-		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-		merge_by_key(device,
-			from_array, from_array + number_of_edges,
-			to_array, to_array + number_of_edges,
-			index_from, index_to,
-			temp_indx,
-			full_edge_array);
-
-			std::cout << "Merge ok";
-
-		sort_by_key(device,
-			temp_indx, temp_indx + number_of_edges,
-			full_edge_array);
-			std::cout << "Sort ok";
-		/*
-		*	Form vertex offset list
-		*/
-
-		reduce_by_key(device,
-			temp_indx, temp_indx + number_of_edges,
-			make_constant_iterator(1),
-			temp_indx,
-			full_vertex_array);
-			std::cout << "Reduce ok";
-		/*
-		*	Form degree vector.
-		*	Each vertex has degree
-		*	Total size: number_of_vertex
-		*/
-
-		copy(device,
-			full_vertex_array,
-			full_vertex_array + number_of_vertex,
-			vertex_degrees);
-				std::cout << "Copy ok";
-		/*
-		*	Copy data to degree_count array
-		*/
-
-		fill(device, degree_count, degree_count + number_of_vertex, 0);
-		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
-		std::cout << "Degree ok";
-		int gridsize = number_of_vertex;
-		degree_count_former<<<1, gridsize>>>(vertex_degrees, degree_count, number_of_vertex,1);
-			std::cout << "Ha gegree";
-		/*
-		*	Form vertex offset array
-		*	Result: vertex offser array => 2 4 10 ...
-		*/
-		inclusive_scan(device,
-			 full_vertex_array,
-			 full_vertex_array+number_of_vertex,
-			 full_vertex_array);
-			 	std::cout << "Inclusive scan ok";
-		// Clean temporal array
-		device_free(temp_indx);
 
 		/*
 		*	Transform the edge list array according to they paired edge.
@@ -453,11 +374,11 @@ bool directed;
 		*/
 
 		transform(device,
-			full_edge_array, full_edge_array + 2*number_of_edges,
+			temp_indx2, temp_indx2 + 2*number_of_edges,
 			full_edge_array,
 			coo_to_csr_converter(from_array, to_array,
 				number_of_edges));
-
+				device_free(temp_indx2);
 				std::cout << "Yep ";
 	}
 };
