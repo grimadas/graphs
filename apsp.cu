@@ -31,7 +31,7 @@ int main(int argc, char* argv[]){
 	//Read file from file
 	cout << "Reading file with graph: \n ";
 //	_read_from_file(H_G, N);
-	_read_from_file_directed(H_G, N);
+	_read_from_file(H_G, N);
 	cout << "Assigning initial paths ";
 
 
@@ -45,22 +45,22 @@ int main(int argc, char* argv[]){
 		//	cout << endl;
 	}
 
-	UINT wTimerRes = 0;
-	bool init = InitMMTimer(wTimerRes);
-	DWORD startTime = timeGetTime();
 	cout << "\nFloyd-Warshall on GPU underway:\n";
 	_Wake_GPU << <1, BLOCK_SIZE >> >(32);
 
 	//call host function which will copy all info to device and run CUDA kernels
 
+	unsigned int t2_time = dtime_usec(0);
+
 
 	_GPU_Floyd(H_G, H_Gpath, N, L);
+	t2_time = dtime_usec(t2_time);
 
-	unsigned int endTime = timeGetTime();
-	unsigned int gpu_time = unsigned int(endTime - startTime);
-	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
-	DestroyMMTimer(wTimerRes, init);
+
+//	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
+	std::cout << "Ffloyd Warshall gpu t2 time: " << t2_time/(float)USECPSEC << std::endl;
 	// The result is stored in H_G (the level)
+	/*
 	cout << "H_PATH" << endl;
 	for (int i = 0; i<N; i++){//copy for use in computation
 		for (int j = 0; j < N; j++)
@@ -78,7 +78,7 @@ int main(int argc, char* argv[]){
 		}
 			cout << endl;
 	}
-
+	*/
 
 	free(OrigGraph);
 	free(H_G);

@@ -126,9 +126,9 @@ bool directed;
 		}
 
 		std::cout << "\n Degree count :";
-		domain b= new vertex[number_of_vertex];
-		copy(degree_count, degree_count + number_of_vertex, b);
-		for(int i=0; i < number_of_vertex; i++)
+		domain b= new vertex[max_degree];
+		copy(degree_count, degree_count + max_degree, b);
+		for(int i=0; i < max_degree; i++)
 		{
 			 std::cout << b[i] << " ";
 		}
@@ -161,7 +161,7 @@ bool directed;
 	void print_opacity_matrix()
 	{
 		printf("\n Opacity : ");
-		opacity* a = new opacity[number_of_vertex * number_of_vertex];
+		opacity* a = new opacity[max_degree * max_degree];
 		copy(opacity_matrix, opacity_matrix + max_degree*max_degree, a);
 		for (int i = 0; i< max_degree; i++)
 		{
@@ -213,22 +213,6 @@ bool directed;
 
 		from_array = device_malloc<vertex>(number_of_edges+1);
 		to_array = device_malloc<vertex>(number_of_edges+1);
- 		domain a = new vertex[number_of_edges];
-		copy(from_array_host, from_array_host + number_of_edges, a);
-		std::cout << "From array: " ;
-		for(int i=0; i < number_of_edges; i++)
-		{
-			std::cout << " " << a[i];
-		}
-		std::cout << std::endl;
-
-		copy(to_array_host, to_array_host + number_of_edges, a);
-		std::cout << "TO array: " ;
-		for(int i=0; i < number_of_edges; i++)
-		{
-			std::cout << " " << a[i];
-		}
-		std::cout << std::endl;
 
 			/* Copy arrays to device */
 		copy(from_array_host, from_array_host + number_of_edges, from_array);
@@ -236,11 +220,6 @@ bool directed;
 		delete from_array_host, to_array_host;
 
 		vertex_degrees = device_malloc<vertex>(number_of_vertex);
-		degree_count = device_malloc<vertex>(number_of_vertex);
-		// Init opacity matrix TODO: memory if n^2
-		opacity_matrix = device_malloc<opacity>(number_of_vertex*number_of_vertex);
-		fill(device, opacity_matrix, opacity_matrix + number_of_vertex*number_of_vertex, 0);
-
 
 		int num_vertex=L_VALUE*number_of_vertex;
 	//	if (!directed)
@@ -299,6 +278,7 @@ bool directed;
 
 		int gridsize =(2*number_of_edges + BLOCK_SIZE - 1) / BLOCK_SIZE;
 		degree_count_former<<<gridsize, BLOCK_SIZE>>>(temp_indx, full_vertex_array,2*number_of_edges,0);
+		cudaDeviceSynchronize();
 	//	transform(device, full_vertex_array, full_vertex_array + number_of_vertex, make_constant_iterator(1),
   //                  full_vertex_array, plus<int>());
 	/*	reduce_by_key(device,
@@ -308,14 +288,6 @@ bool directed;
 			full_vertex_array);
 			std::cout << "Reduce ok : ";
 */
-			std::cout << "VERTEX: ";
-			domain a = new vertex[number_of_vertex];
-			copy(full_vertex_array, full_vertex_array + number_of_vertex, a);
-			for (int i =0; i < number_of_vertex; i++)
-			{
-				std::cout << a[i] << " ";
-			}
-			std::cout << std::endl;
 
 		/*
 		*	Form degree vector.
@@ -332,19 +304,19 @@ bool directed;
 		*	Copy data to degree_count array
 		*/
 
-		fill(device, degree_count, degree_count + number_of_vertex, 0);
+
 		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
 		std::cout << "Degree ok";
+
+		// Init opacity matrix TODO: memory if n^2
+		opacity_matrix = device_malloc<opacity>(max_degree*max_degree);
+		fill(device, opacity_matrix, opacity_matrix + max_degree*max_degree, 0);
 		// Offset is 1
+		degree_count = device_malloc<vertex>(max_degree);
+		fill(device, degree_count, degree_count + max_degree, 0);
 		gridsize = (number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
 		degree_count_former<<<gridsize, BLOCK_SIZE>>>(vertex_degrees, degree_count,number_of_vertex, 1);
-		std::cout << "Degree counter :";
-		copy(degree_count, degree_count + number_of_vertex, a);
-		for (int i =0; i < number_of_vertex; i++)
-		{
-			std::cout << a[i] << " ";
-		}
-		std::cout << std::endl;
+		cudaDeviceSynchronize();
 
 		/*
 		*	Form vertex offset array

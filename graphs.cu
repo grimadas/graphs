@@ -40,7 +40,7 @@ void form_full_level_graph(Graph graph)
 			copy(device,
 				graph.full_edge_array + starting_point, graph.full_edge_array + ending_point,
 				 temp_from);
-			std::cout << "Ok in 1" << std::endl;
+			// std::cout << "Ok in 1" << std::endl;
 				//
 				transform(device,
 					temp_from, temp_from + number_edges_to_process,
@@ -58,7 +58,7 @@ void form_full_level_graph(Graph graph)
 				make_permutation_iterator(graph.full_vertex_array, temp_from),
 				make_permutation_iterator(graph.full_vertex_array,
 				temp_from + number_edges_to_process), temp_from);
-				std::cout << "Ok in 2" << std::endl;
+				// std::cout << "Ok in 2" << std::endl;
 
 			/*
 			*	Array of vertex, from which we will expand. Proces vertex
@@ -71,7 +71,7 @@ void form_full_level_graph(Graph graph)
 
 			expand(temp_vertexes, temp_vertexes + graph.number_of_vertex, make_counting_iterator<vertex>(0), process_vetxes);
 			device_free(temp_vertexes);
-			std::cout << "Ok in 3" << std::endl;
+			// std::cout << "Ok in 3" << std::endl;
 			/*
 				Offset array, step 1:
 				Result <- Temp_TO - Temp_FROM
@@ -85,7 +85,7 @@ void form_full_level_graph(Graph graph)
 														temp_to + number_edges_to_process)),
 					position_in_array,
 					counter());
-				std::cout << "Ok in 4" << std::endl;
+				// std::cout << "Ok in 4" << std::endl;
 				/*
 					Forming offset array from process number, step 2:
 					2 4 4 => 2 6 10
@@ -95,15 +95,15 @@ void form_full_level_graph(Graph graph)
 									    position_in_array);
 
 			//TODO: check position in array
-			domain prints = new vertex[number_edges_to_process];
-			copy(position_in_array, position_in_array + number_edges_to_process, prints);
-			std::cout << "Position In array:  " << std::endl;
-			for(int i=0; i < number_edges_to_process; i++)
-			{
-				std::cout << prints[i]<<" ";
-			}
+		//	domain prints = new vertex[number_edges_to_process];
+		//	copy(position_in_array, position_in_array + number_edges_to_process, prints);
+		//	std::cout << "Position In array:  " << std::endl;
+		//	for(int i=0; i < number_edges_to_process; i++)
+		//	{
+		//		std::cout << prints[i]<<" ";
+		//	}
 
-			std::cout << "Ok in 5" << std::endl;
+			//// std::cout << "Ok in 5" << std::endl;
 
 			device_ptr<vertex> expanded_array = device_malloc<vertex>(position_in_array[number_edges_to_process - 1]);
 			fill(device, expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], -1);
@@ -114,12 +114,13 @@ void form_full_level_graph(Graph graph)
 			int prev_max_position = position_in_array[number_edges_to_process - 1];
 			//  Expand array on one level
 			//	Can contain non unique values
-			std::cout << "Ok in 6" << std::endl;
+
 
 			device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
 			fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
 
 			int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;
+			// std::cout << "Ok in 6 " << "Number of edges to process is " << grid_size <<std::endl;
 			// Expand here and put to expanded_array
 			expander<<< grid_size, BLOCK_SIZE >>>(
 				process_vetxes, temp_from, temp_to,
@@ -131,10 +132,10 @@ void form_full_level_graph(Graph graph)
 				current_level,
 				positions_vertex_current_level);
 
-			std::cout << "Ok in 7" << std::endl;
-			//cudaThreadSynchronize();
+			// std::cout << "Ok in 7" << std::endl;
+		//	cudaThreadSynchronize();
 			cudaDeviceSynchronize();
-			std::cout << "Ok in 9" << std::endl;
+			// std::cout << "Ok in 9" << std::endl;
 			device_free(temp_from);
 			device_free(temp_to);
 			device_free(process_vetxes);
@@ -144,15 +145,15 @@ void form_full_level_graph(Graph graph)
 				*/
 			remove(device, expanded_array, expanded_array + prev_max_position, -1);
 			remove(device, from_vertex_array, from_vertex_array + prev_max_position, -1);
-			std::cout << "Ok in 10" << std::endl;
+			// std::cout << "Ok in 10" << std::endl;
 
-			prints = new vertex[position_in_array[number_edges_to_process-1]];
-			copy(expanded_array, expanded_array + position_in_array[number_edges_to_process-1], prints);
-			std::cout << "After expanded : " << std::endl;
-			for(int i=0; i <  position_in_array[number_edges_to_process-1]; i++)
-			{
-				std::cout << prints[i]<<" ";
-			}
+		//	prints = new vertex[position_in_array[number_edges_to_process-1]];
+		//	copy(expanded_array, expanded_array + position_in_array[number_edges_to_process-1], prints);
+		//	std::cout << "After expanded : " << std::endl;
+		//	for(int i=0; i <  position_in_array[number_edges_to_process-1]; i++)
+		//	{
+		//		std::cout << prints[i]<<" ";
+		//	}
 			/*
 			*	Form vertex offset list
 			*/
@@ -163,12 +164,12 @@ void form_full_level_graph(Graph graph)
 									positions_vertex_current_level + graph.number_of_vertex, positions_vertex_current_level);
 
 
-			copy(positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, prints);
-			std::cout << "Position after expanded : " << std::endl;
-			for(int i=0; i < graph.number_of_vertex; i++)
-			{
-					std::cout << prints[i]<<" ";
-			}
+	//		copy(positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, prints);
+	//		std::cout << "Position after expanded : " << std::endl;
+	//		for(int i=0; i < graph.number_of_vertex; i++)
+	//		{
+	//				std::cout << prints[i]<<" ";
+	//		}
 
 
 			device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
@@ -176,21 +177,21 @@ void form_full_level_graph(Graph graph)
 			unifier <<<grid_size, BLOCK_SIZE >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets, graph.number_of_vertex);
 			cudaDeviceSynchronize();
 
-			copy(vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex, prints);
-			std::cout << "vertex_ending_offsets : " << std::endl;
-			for(int i=0; i < graph.number_of_vertex; i++)
-			{
-					std::cout << prints[i]<<" ";
-			}
+	//		copy(vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex, prints);
+	//		std::cout << "vertex_ending_offsets : " << std::endl;
+	//	for(int i=0; i < graph.number_of_vertex; i++)
+	//		{
+	//				std::cout << prints[i]<<" ";
+	//		}
 
-			copy(expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], prints);
-			std::cout <<std::endl << "Exapnded array now " << std::endl;
-			for(int i=0; i < position_in_array[number_edges_to_process - 1]; i++)
-			{
-					std::cout << prints[i]<<" ";
-			}
+	//		copy(expanded_array, expanded_array + position_in_array[number_edges_to_process - 1], prints);
+	//  std::cout <<std::endl << "Exapnded array now " << std::endl;
+	//		for(int i=0; i < position_in_array[number_edges_to_process - 1]; i++)
+	//		{
+	//				std::cout << prints[i]<<" ";
+	//		}
 
-			std::cout << "Ok in 11" << std::endl;
+			// std::cout << "Ok in 11" << std::endl;
 
 			copy(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
 				graph.full_vertex_array + current_level * graph.number_of_vertex);
@@ -198,7 +199,7 @@ void form_full_level_graph(Graph graph)
 			inclusive_scan(device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 				graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
-			std::cout << "Ok in 12" << std::endl;
+			// std::cout << "Ok in 12" << std::endl;
 			grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
 			edge_copier<<<grid_size, BLOCK_SIZE>>>(
 				expanded_array,
@@ -210,13 +211,13 @@ void form_full_level_graph(Graph graph)
 				graph.number_of_vertex);
 
 			cudaDeviceSynchronize();
-			std::cout << "Ok in 13" << std::endl;
+			// std::cout << "Ok in 13" << std::endl;
 			device_free(expanded_array);
 			device_free(positions_vertex_current_level);
 			device_free(vertex_ending_offsets);
 			device_free(position_in_array);
-			delete prints;
-			std::cout << "Ok in 14" << std::endl;
+	//		delete prints;
+			// std::cout << "Ok in 14" << std::endl;
 
 
 	}
@@ -375,7 +376,7 @@ int main(int argc, char* argv[])
 	form_full_level_graph(graph);
 	t2_time = dtime_usec(t2_time);
 	t3_time = dtime_usec(0);
-	calc_L_opacity(graph);
+//	calc_L_opacity(graph);
 	t3_time = dtime_usec(t3_time);
 
 //	unsigned int endTime = timeGetTime();
@@ -384,8 +385,8 @@ int main(int argc, char* argv[])
 //	DestroyMMTimer(wTimerRes, init);
 
 
-	graph.print_csr_graph();
-	graph.print_opacity_matrix();
+//	graph.print_csr_graph();
+//	graph.print_opacity_matrix();
 
 	std::cout << "Graph preprocessing " << t1_time/(float)USECPSEC << " Graph L - apsp " << t2_time/(float)USECPSEC
 	<< " Opacity matrix calculation " << t3_time/(float)USECPSEC <<std::endl;

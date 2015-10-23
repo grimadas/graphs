@@ -61,6 +61,7 @@ __global__  void expander(
   	{
   		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
   	}
+
   	/*
   	*	Copy to expanded array if the edge is unique (was not discovered previously, not equal to vertex itself)
   	*	Result:			1 2 1 .... (expanded edges)
@@ -77,7 +78,6 @@ __global__  void expander(
     	int real_size = distance(expanded_array + offset_to_put_exp_array, current_position);
     	int starting = current_vertex[idx];
     	// TODO : check real size value
-
     	/*
     	*	Expand the current processing vertex to the size *real size*;
     	*			Result : 0 0 0 1 1 ... (the vertex from expanded)
@@ -86,7 +86,6 @@ __global__  void expander(
     		make_constant_iterator(starting),
     		make_constant_iterator(starting) + real_size,
     		from_vertex_array + offset_to_put_exp_array);
-
     	vertex* k = raw_pointer_cast(vertex_offset + starting);
     	atomicAdd(k, real_size);
       /*
@@ -157,7 +156,7 @@ __global__ void unifier(
 		int end_point = positions_vertex_current_level[idx];
 		if (end_point > start_point)
 		{
-			sort(device, expanded_array + start_point, expanded_array + end_point);
+      sort(device, expanded_array + start_point, expanded_array + end_point);
 			// remove dublicates
 			device_ptr<vertex> current_position =
 				unique(device, expanded_array + start_point, expanded_array + end_point);

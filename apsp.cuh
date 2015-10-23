@@ -6,7 +6,8 @@
 
 //forward function declarations
 #include "headers.h"
-
+using namespace std;
+/*
 bool InitMMTimer(UINT wTimerRes){
 	TIMECAPS tc;
 	if (timeGetDevCaps(&tc, sizeof(TIMECAPS)) != TIMERR_NOERROR) {return false;}
@@ -19,6 +20,7 @@ void DestroyMMTimer(UINT wTimerRes, bool init){
 	if(init)
 		timeEndPeriod(wTimerRes);
 }
+*/
 
 void _CPU_Floyd(int *G,int *Gpath,int N){//standard N^3 algo
 	for(int k=0;k<N;++k)for(int i=0;i<N;++i)for(int j=0;j<N;++j){
@@ -42,10 +44,10 @@ bool _getPath(int curEdge, int nxtEdge,vector<Piii> &path,const int *D, const in
 	int curIdx=curEdge*N+nxtEdge;
 	if(D[curIdx]>=INF)return false;
 	if(Dpath[curIdx]==-1){//end of backwards retracement
-		path.push_back(make_pair(make_pair(curEdge,nxtEdge),D[curIdx]));
+		path.push_back(std::make_pair(std::make_pair(curEdge,nxtEdge),D[curIdx]));
 		return true;
 	}else{//record las t edge cost and move backwards
-		path.push_back(make_pair(make_pair(Dpath[curIdx],nxtEdge),D[Dpath[curIdx]*N+nxtEdge]));
+		path.push_back(std::make_pair(std::make_pair(Dpath[curIdx],nxtEdge),D[Dpath[curIdx]*N+nxtEdge]));
 		return _getPath(curEdge,Dpath[curIdx],path,D,Dpath,N);
 	}
 }
@@ -180,7 +182,7 @@ int _read_from_file(int *G,const int N){//reads in edge list from file
 	while(getline(readfile,line)){
 		istringstream linestream(line);
 		linestream>>v0>>v1;
-	
+
 		G[v0*N+v1]=1;
 		G[v1*N + v0] = 1;
 		num_edges++;

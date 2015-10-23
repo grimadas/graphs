@@ -70,7 +70,7 @@ typedef std::pair<std::pair<int,int>,int> Piii;
 //these can be altered on user depending
 // on data set and type of
 // operation(random test, read from file etc)
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 1024
 #define RANGE 1
 #define RANDOM_GSIZE 2 * 500
 #define FILE_GSIZE 8298 //the number of edges in Wiki-Vote.txt if the file test is run
@@ -88,7 +88,7 @@ typedef std::pair<std::pair<int,int>,int> Piii;
 
 #define opacity float
 
-#define USECPSEC 1000000ULL 
+#define USECPSEC 1000000ULL
 
 
 unsigned long long dtime_usec(unsigned long long start){
