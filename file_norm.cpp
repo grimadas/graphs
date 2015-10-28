@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
     std::cout <<" Reading file "<< file_name << std::endl;
     std::ifstream myfile;
     myfile.open(file_name);
-    std::vector<std::pair<int, int>> items;
+    std::vector<std::pair<int, int> > items;
     int edges =0;
     int vertex = 0;
     int a,b;

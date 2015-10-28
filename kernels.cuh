@@ -57,6 +57,7 @@ __global__  void expander(
   	/*
   	*	For searching in full_edge_list if already discovered
   	*/
+
   	if (idx != 0)
   	{
   		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
@@ -153,21 +154,21 @@ __global__ void unifier(
 			start_point = positions_vertex_current_level[idx - 1];
 
 		}
+
+
+
 		int end_point = positions_vertex_current_level[idx];
-		if (end_point > start_point)
-		{
-      sort(device, expanded_array + start_point, expanded_array + end_point);
-			// remove dublicates
-			device_ptr<vertex> current_position =
-				unique(device, expanded_array + start_point, expanded_array + end_point);
-			vertex real_size = distance(expanded_array + start_point, current_position);
-			current_ending_offset[idx] = real_size;
-		}
-		else
-		{
-			current_ending_offset[idx] = 0;
-		}
-  }
+  //  printf("ZZZ = s", start_point, end_point);
+    sort(device, expanded_array + start_point, expanded_array + end_point);
+
+    	// remove dublicates
+		device_ptr<vertex> current_position =
+			unique(device, expanded_array + start_point, expanded_array + end_point);
+      vertex real_size = distance(expanded_array + start_point, current_position);
+		  current_ending_offset[idx] = real_size;
+
+
+    }
 	}
 
 

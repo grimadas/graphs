@@ -4,7 +4,7 @@
 int main(int argc, char* argv[]){
 	char ch;
 	srand(time(NULL));
-
+	unsigned int t1_time = dtime_usec(0);
 	int vertex_number = std::atoi(argv[1]);
 	int l_value = std::atoi(argv[2]);
 	const int N =  vertex_number;
@@ -49,7 +49,7 @@ int main(int argc, char* argv[]){
 	_Wake_GPU << <1, BLOCK_SIZE >> >(32);
 
 	//call host function which will copy all info to device and run CUDA kernels
-
+	t1_time = dtime_usec(t1_time);
 	unsigned int t2_time = dtime_usec(0);
 
 
@@ -58,7 +58,7 @@ int main(int argc, char* argv[]){
 
 
 //	printf("GPU Timing(including all device-host, host-device copies, device allocations and freeing of device memory): %dms\n\n", gpu_time);
-	std::cout << "Ffloyd Warshall gpu t2 time: " << t2_time/(float)USECPSEC << std::endl;
+	std::cout<< "preprocessing time "  << t1_time/(float)USECPSEC << "Ffloyd Warshall gpu t2 time: " << t2_time/(float)USECPSEC << std::endl;
 	// The result is stored in H_G (the level)
 	/*
 	cout << "H_PATH" << endl;

@@ -1,4 +1,4 @@
-# Directed graph (each unordered pair of nodes is saved once): p2p-Gnutella06.txt 
+I# Directed graph (each unordered pair of nodes is saved once): p2p-Gnutella06.txt 
 # Directed Gnutella P2P network from August 6 2002
 # Nodes: 8717 Edges: 31525
 # FromNodeId	ToNodeId

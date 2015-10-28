@@ -40,7 +40,7 @@ void form_full_level_graph(Graph graph)
 			copy(device,
 				graph.full_edge_array + starting_point, graph.full_edge_array + ending_point,
 				 temp_from);
-			// std::cout << "Ok in 1" << std::endl;
+			 std::cout << "Ok in 1" << std::endl;
 				//
 				transform(device,
 					temp_from, temp_from + number_edges_to_process,
@@ -118,9 +118,9 @@ void form_full_level_graph(Graph graph)
 
 			device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
 			fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
-
-			int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;
-			// std::cout << "Ok in 6 " << "Number of edges to process is " << grid_size <<std::endl;
+			dim3 grid_size((number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE);
+		//	int grid_size =
+			 std::cout << "Ok in 6 " << "Number of edges to process is " << grid_size.x <<std::endl;
 			// Expand here and put to expanded_array
 			expander<<< grid_size, BLOCK_SIZE >>>(
 				process_vetxes, temp_from, temp_to,
@@ -132,10 +132,9 @@ void form_full_level_graph(Graph graph)
 				current_level,
 				positions_vertex_current_level);
 
-			// std::cout << "Ok in 7" << std::endl;
-		//	cudaThreadSynchronize();
 			cudaDeviceSynchronize();
-			// std::cout << "Ok in 9" << std::endl;
+
+			 std::cout << "Ok in 9" << std::endl;
 			device_free(temp_from);
 			device_free(temp_to);
 			device_free(process_vetxes);
@@ -145,7 +144,7 @@ void form_full_level_graph(Graph graph)
 				*/
 			remove(device, expanded_array, expanded_array + prev_max_position, -1);
 			remove(device, from_vertex_array, from_vertex_array + prev_max_position, -1);
-			// std::cout << "Ok in 10" << std::endl;
+			std::cout << "Ok in 10" << std::endl;
 
 		//	prints = new vertex[position_in_array[number_edges_to_process-1]];
 		//	copy(expanded_array, expanded_array + position_in_array[number_edges_to_process-1], prints);
@@ -173,8 +172,8 @@ void form_full_level_graph(Graph graph)
 
 
 			device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
-			grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
-			unifier <<<grid_size, BLOCK_SIZE >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets, graph.number_of_vertex);
+			dim3 grid_size_uni((graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE);
+			unifier <<<grid_size_uni, BLOCK_SIZE >>>( expanded_array, positions_vertex_current_level, vertex_ending_offsets, graph.number_of_vertex);
 			cudaDeviceSynchronize();
 
 	//		copy(vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex, prints);
@@ -191,7 +190,7 @@ void form_full_level_graph(Graph graph)
 	//				std::cout << prints[i]<<" ";
 	//		}
 
-			// std::cout << "Ok in 11" << std::endl;
+			 std::cout << "Ok in 11" << std::endl;
 
 			copy(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex,
 				graph.full_vertex_array + current_level * graph.number_of_vertex);
@@ -199,9 +198,9 @@ void form_full_level_graph(Graph graph)
 			inclusive_scan(device, graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
 				graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex, graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
 
-			// std::cout << "Ok in 12" << std::endl;
-			grid_size =  (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
-			edge_copier<<<grid_size, BLOCK_SIZE>>>(
+			 std::cout << "Ok in 12" << std::endl;
+
+			edge_copier<<<grid_size_uni, BLOCK_SIZE>>>(
 				expanded_array,
 				positions_vertex_current_level,
 				vertex_ending_offsets,
@@ -211,13 +210,13 @@ void form_full_level_graph(Graph graph)
 				graph.number_of_vertex);
 
 			cudaDeviceSynchronize();
-			// std::cout << "Ok in 13" << std::endl;
+			 std::cout << "Ok in 13" << std::endl;
 			device_free(expanded_array);
 			device_free(positions_vertex_current_level);
 			device_free(vertex_ending_offsets);
 			device_free(position_in_array);
 	//		delete prints;
-			// std::cout << "Ok in 14" << std::endl;
+			 std::cout << "Ok in 14" << std::endl;
 
 
 	}
@@ -264,8 +263,7 @@ void calc_L_opacity(Graph graph)
 		adjacent_difference(device, from_vertex, from_vertex + graph.number_of_vertex, from_vertex);
 
 		from_vertex[0] = from_vertex[0] - starting_point;
-		std::cout << "Before Expanding opacity";
-   	expand(from_vertex, from_vertex + graph.number_of_vertex, make_counting_iterator<vertex>(0), from);
+	 	expand(from_vertex, from_vertex + graph.number_of_vertex, make_counting_iterator<vertex>(0), from);
 /*
 		transform(
 			device,
@@ -306,16 +304,13 @@ void calc_L_opacity(Graph graph)
 		device_ptr<vertex> to = device_malloc<vertex>(N + 1);
 		//	auto iter_begin = make_transform_iterator(full_edge_array.begin(), minus_one());
 		//	auto iter_end =   make_transform_iterator(full_edge_array.begin() + N, minus_one());
-		std::cout << "Before Expanding opacity 2 statt = " << starting_point << " Ending "  << ending_point;
 		copy(device, graph.full_edge_array + starting_point, graph.full_edge_array + ending_point, to);
-		std::cout << "Before Expanding opacity 3 ";
 		transform(
 			device,
 			make_permutation_iterator(graph.vertex_degrees, to),
 			make_permutation_iterator(graph.vertex_degrees, to + N),
 			to, identity<vertex>());
 
-			std::cout << "Before Expanding opacity 4 ";
 
 		/*
 		*  Find max and min in zip iterator of to - from pairs
@@ -328,7 +323,7 @@ void calc_L_opacity(Graph graph)
 			make_zip_iterator(make_tuple(from + N, to + N)),
 			make_zip_iterator(make_tuple(from, to)),
 			min_max_transform());
-			std::cout << "Before Expanding opacity 5";
+
 
 		/*
 		* 	Opacity  matrix forming. Now it is n^ 2 memory TODO: IN PARALLEL using cuda kernel
@@ -339,7 +334,7 @@ void calc_L_opacity(Graph graph)
 
 		int gridsize =(N + BLOCK_SIZE - 1) / BLOCK_SIZE;
 		opacity_former<<<gridsize, BLOCK_SIZE>>>(from, to, graph.degree_count, graph.opacity_matrix, graph.max_degree, N);
-		std::cout << "Before Expanding opacity 6";
+
 
 		/*
 		* Sort by key. Indexes (values) and degrees (keys)
@@ -350,6 +345,12 @@ void calc_L_opacity(Graph graph)
 		*/
 
 	}
+}
+
+
+void edge_removal(Graph graph)
+{
+	//graph.opacity_matrix
 }
 
 
@@ -375,8 +376,9 @@ int main(int argc, char* argv[])
 	t2_time = dtime_usec(0);
 	form_full_level_graph(graph);
 	t2_time = dtime_usec(t2_time);
+	std::cout << "Graph preprocessing " << t1_time/(float)USECPSEC << " Graph L - apsp " << t2_time/(float)USECPSEC;
 	t3_time = dtime_usec(0);
-//	calc_L_opacity(graph);
+	calc_L_opacity(graph);
 	t3_time = dtime_usec(t3_time);
 
 //	unsigned int endTime = timeGetTime();
@@ -385,11 +387,11 @@ int main(int argc, char* argv[])
 //	DestroyMMTimer(wTimerRes, init);
 
 
-//	graph.print_csr_graph();
+	graph.print_csr_graph();
 //	graph.print_opacity_matrix();
 
-	std::cout << "Graph preprocessing " << t1_time/(float)USECPSEC << " Graph L - apsp " << t2_time/(float)USECPSEC
-	<< " Opacity matrix calculation " << t3_time/(float)USECPSEC <<std::endl;
+
+	std::cout << " Opacity matrix calculation " << t3_time/(float)USECPSEC <<std::endl;
 
 	return 0;
 }

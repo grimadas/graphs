@@ -89,7 +89,7 @@ __global__ void _GPU_Floyd_kernel(int k, int *G,int *P, int N, int L_VALUE){//G 
 	__syncthreads();
 	if(best==INF || best > L_VALUE)return;
 	int tmp_b=G[k*N+col];
-	if(tmp_b==INF || tmp_b > L_VALUE)return;
+	if(tmp_b==INF || tmp_b + best > L_VALUE)return;
 //	if (cur > 1)
 //		return;
 	int cur = best + tmp_b;
