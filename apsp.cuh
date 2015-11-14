@@ -112,6 +112,11 @@ void _GPU_Floyd(int *H_G, int *H_Gpath, const int N, int L){
 	err=cudaMemcpy(dP,H_Gpath,numBytes,_HTD);
 	if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}
 
+	size_t free_mem;
+	size_t total_mem;
+	cudaMemGetInfo(&free_mem,&total_mem);
+	std::cout << "Memory now " << (long)free_mem/1024/1024 << " Total " << (long)total_mem/1024/1024;
+
 	dim3 dimGrid((N+BLOCK_SIZE-1)/BLOCK_SIZE,N);
 
 	for(int k=0;k<N;k++){//main loop
@@ -120,6 +125,9 @@ void _GPU_Floyd(int *H_G, int *H_Gpath, const int N, int L){
 		err = cudaThreadSynchronize();
 		if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}
 	}
+	cudaMemGetInfo(&free_mem,&total_mem);
+	std::cout << "Memory now " << (long)free_mem/1024/1024 << " Total " << (long)total_mem/1024/1024;
+
 	//copy back memory
 	err=cudaMemcpy(H_G,dG,numBytes,_DTH);
 	if(err!=cudaSuccess){printf("%s in %s at line %d\n",cudaGetErrorString(err),__FILE__,__LINE__);}

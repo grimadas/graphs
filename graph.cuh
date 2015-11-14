@@ -26,9 +26,16 @@
 
 */
 
+#ifndef GRAPH_USED
+#define GRAPH_USED
+
+
+
 #include "headers.h"
 #include "functors.cuh"
 #include "kernels.cuh"
+
+
 
 class Graph {
 
@@ -39,6 +46,7 @@ device_ptr<vertex> full_vertex_array;
 device_ptr<vertex> full_edge_array;
 
 int L_VALUE;
+float threshold;
 
 // Current
 // domain vertex_current_end; We don't need this ?
@@ -51,18 +59,26 @@ domain from_to_host_matrix;
 // Copy of arrays in the device
 device_ptr<vertex> from_array;
 device_ptr<vertex> to_array;
+device_ptr<int> opacity_index;
 
 // Additional arrays
-device_ptr<vertex> vertex_degrees;
-device_ptr<vertex> degree_count;
+device_ptr<int> initial_vertex_degrees;
+device_ptr<int> real_vertex_degrees;
+device_ptr<int> degree_count;
 field max_degree;
 
 device_ptr<opacity> opacity_matrix;
+device_ptr<opacity> lessL_matrix;
 
 int number_of_vertex;
 int number_of_edges;
 
 bool directed;
+
+	int* num_edges()
+	{
+		return &number_of_edges;
+	}
 
 	/**********************************************
 	*		Read graph in Edge list format (COO)
@@ -104,14 +120,16 @@ bool directed;
 			}
 			// Reading from file
 			delete from_to_host_matrix;
-			printf("Graph parametrs %d %d \n", number_of_vertex, number_of_edges);
+			if (debug)
+				printf("Graph parametrs %d %d \n", number_of_vertex, number_of_edges);
+
 			myfile.close();
 	}
 
 	/**********************************
 	*	Print full graph CSR format
 	* Require:
-	*					vertex_degrees != NULL
+	*					initial_vertex_degrees != NULL
 	*					full_vertex_array != NULL
 	*					after_array_init
 	************************************/
@@ -119,7 +137,14 @@ bool directed;
 	{
 		std::cout << "\n Vertex degrees :";
 		domain a = new vertex[number_of_vertex];
-		copy(vertex_degrees, vertex_degrees + number_of_vertex, a);
+		copy(initial_vertex_degrees, initial_vertex_degrees + number_of_vertex, a);
+		for(int i=0; i < number_of_vertex; i++)
+		{
+			 std::cout << a[i] << " ";
+		}
+
+		std::cout << "\n Real vertex degree :";
+		copy(real_vertex_degrees, real_vertex_degrees + number_of_vertex, a);
 		for(int i=0; i < number_of_vertex; i++)
 		{
 			 std::cout << a[i] << " ";
@@ -160,7 +185,7 @@ bool directed;
 	***********************************************/
 	void print_opacity_matrix()
 	{
-		printf("\n Opacity : ");
+		printf("\n Opacity : \n");
 		opacity* a = new opacity[max_degree * max_degree];
 		copy(opacity_matrix, opacity_matrix + max_degree*max_degree, a);
 		for (int i = 0; i< max_degree; i++)
@@ -171,6 +196,17 @@ bool directed;
 			}
 			std::cout << std::endl;
 		}
+		printf("\n Number of edges less L : \n");
+		copy(lessL_matrix, lessL_matrix + max_degree*max_degree, a);
+		for (int i = 0; i< max_degree; i++)
+		{
+			for (int j = 0; j< max_degree; j++)
+			{
+				std::cout << a[i*max_degree + j] << " ";
+			}
+			std::cout << std::endl;
+		}
+
 		delete a;
 	}
 
@@ -182,13 +218,31 @@ bool directed;
 	*********************************************/
 	void print_coo_graph()
 	{
+		int total_size = number_of_edges;
+		std::cout << "EDGES " << number_of_edges;
+		std::cout << " From: \n";
+		domain a = new vertex[total_size];
+		copy(from_array, from_array + total_size, a);
+		for(int i=0; i < total_size; i++)
+		{
+			 std::cout << a[i] << " ";
+		}
 
-		std::cout << "From ";
-		for_each(from_array_host, from_array_host + number_of_edges, printer());
-		std::cout << std::endl << "TO ";
-		for_each(to_array_host, to_array_host + number_of_edges, printer());
+		std::cout << "\n To: \n";
+		domain b= new vertex[total_size];
+		copy(to_array, to_array + total_size, b);
+		for(int i=0; i < total_size; i++)
+		{
+			 std::cout << b[i] << " ";
+		}
+		std::cout << std::endl << " Opacity index: \n";
+		copy(opacity_index, opacity_index + total_size, b);
+		for(int i=0; i < total_size; i++)
+		{
+			 std::cout << b[i] << " ";
+		}
 		std::cout << std::endl;
-
+		delete a,b;
 	}
 
 	/****************************************************
@@ -211,15 +265,18 @@ bool directed;
 	void init_arrays()
 	{
 
-		from_array = device_malloc<vertex>(number_of_edges+1);
-		to_array = device_malloc<vertex>(number_of_edges+1);
+		from_array = device_malloc<vertex>(2*number_of_edges);
+		to_array = device_malloc<vertex>(2*number_of_edges);
+		opacity_index = device_malloc<int>(2*number_of_edges);
+
 
 			/* Copy arrays to device */
 		copy(from_array_host, from_array_host + number_of_edges, from_array);
 		copy(to_array_host, to_array_host + number_of_edges, to_array);
 		delete from_array_host, to_array_host;
 
-		vertex_degrees = device_malloc<vertex>(number_of_vertex);
+		initial_vertex_degrees = device_malloc<vertex>(number_of_vertex);
+		real_vertex_degrees = device_malloc<vertex>(number_of_vertex);
 
 		int num_vertex=L_VALUE*number_of_vertex;
 	//	if (!directed)
@@ -230,18 +287,31 @@ bool directed;
 
 	}
 
+
+
 	/********************************************************************
 	*  Converting from COO (edge list) format to CSR (adjaceny list) format
 	*  Run it after something is in COO list (from and to).
 	*		Require:
 	*						directed = False
+	*						from_array contains values
+	*						to_array contains values
+	*		Input:  Create arrays ? : bool
+	*						change degree properties : ? bool
 	********************************************************************/
-	void convert_to_CSR()
+	void convert_to_CSR(bool create_arrays, bool change_properties)
 	{
 		/*
 		* First combine and sort data from and to array - this will be our new edge_list acording to their indexes
 		*/
-		init_arrays();
+		if (debug)
+			std::cout << "Starting convertion ";
+
+		if (create_arrays)
+			init_arrays();
+		else
+			fill(device, full_vertex_array, full_vertex_array+ L_VALUE*number_of_vertex, 0);
+
 		device_ptr<vertex> temp_indx = device_malloc<vertex>(2*number_of_edges);
 		device_ptr<vertex> temp_indx2 = device_malloc<vertex>(2*number_of_edges);
 
@@ -252,25 +322,21 @@ bool directed;
 
 		//	Merging from and to arrays are keys,
 		//	indexes are (0..number_edges) and (num_edges to 2*number_edges)
-	/*	merge_by_key(device,
-			from_array, from_array + number_of_edges,
-			to_array, to_array + number_of_edges,
-			index_from, index_to,
-			temp_indx,
-			full_edge_array); */
 			// Copy from to values
 			copy(device, from_array, from_array + number_of_edges, temp_indx);
 			copy(device, to_array, to_array + number_of_edges, temp_indx + number_of_edges);
 			// Copy indexes
 			copy(device, index_from, index_from + number_of_edges, temp_indx2);
 			copy(device, index_to, index_to + number_of_edges, temp_indx2 + number_of_edges);
-
-			std::cout << "Merge ok : ";
+			if (debug)
+				std::cout << "Merge ok : ";
 
 			sort_by_key(device,
 			temp_indx, temp_indx + 2*number_of_edges,
 			temp_indx2);
-			std::cout << "Sort ok: ";
+
+			if(debug)
+				std::cout << "Sort ok: ";
 
 		/*
 		*	Form vertex offset list
@@ -279,54 +345,61 @@ bool directed;
 		int gridsize =(2*number_of_edges + BLOCK_SIZE - 1) / BLOCK_SIZE;
 		degree_count_former<<<gridsize, BLOCK_SIZE>>>(temp_indx, full_vertex_array,2*number_of_edges,0);
 		cudaDeviceSynchronize();
-	//	transform(device, full_vertex_array, full_vertex_array + number_of_vertex, make_constant_iterator(1),
-  //                  full_vertex_array, plus<int>());
-	/*	reduce_by_key(device,
-			temp_indx, temp_indx + 2*number_of_edges,
-			make_constant_iterator(1),
-			temp_indx,
-			full_vertex_array);
-			std::cout << "Reduce ok : ";
-*/
-
-		/*
-		*	Form degree vector.
-		*	Each vertex has degree
-		*	Total size: number_of_vertex
-		*/
 
 		copy(device,
 			full_vertex_array,
 			full_vertex_array + number_of_vertex,
-			vertex_degrees);
+			real_vertex_degrees);
+
+		if(change_properties)
+		{
+			//
+			//	Form degree vector.
+			//	Each vertex has degree
+			//	Total size: number_of_vertex
+			//
+			copy(device,
+				full_vertex_array,
+				full_vertex_array + number_of_vertex,
+				initial_vertex_degrees);
+			if(debug)
 				std::cout << "Copy ok";
-		/*
-		*	Copy data to degree_count array
-		*/
 
+		// Find maximum degree value
+			max_degree = reduce(device, initial_vertex_degrees,
+																initial_vertex_degrees + number_of_vertex,
+																0, maximum<vertex>());
+		if(debug)
+			std::cout << "Degree ok";
 
-		max_degree = reduce(device, vertex_degrees, vertex_degrees + number_of_vertex, 0, maximum<vertex>());
-		std::cout << "Degree ok";
-
-		// Init opacity matrix TODO: memory if n^2
+		// Opacity matrix should be create again
 		opacity_matrix = device_malloc<opacity>(max_degree*max_degree);
 		fill(device, opacity_matrix, opacity_matrix + max_degree*max_degree, 0);
-		// Offset is 1
-		degree_count = device_malloc<vertex>(max_degree);
-		fill(device, degree_count, degree_count + max_degree, 0);
-		gridsize = (number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
-		degree_count_former<<<gridsize, BLOCK_SIZE>>>(vertex_degrees, degree_count,number_of_vertex, 1);
-		cudaDeviceSynchronize();
 
-		/*
-		*	Form vertex offset array
-		*	Result: vertex offser array => 2 4 10 ...
-		*/
+		// Malloc lessL_matrix in memory: n^2
+	 	lessL_matrix= device_malloc<opacity>(max_degree*max_degree);
+		fill(device,  lessL_matrix, lessL_matrix + max_degree*max_degree, 0);
+
+		degree_count = device_malloc<vertex>(max_degree);
+			fill(device, degree_count, degree_count + max_degree, 0);
+			gridsize = (number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
+			// Offset is 1
+			degree_count_former<<<gridsize, BLOCK_SIZE>>>
+																(initial_vertex_degrees, degree_count,number_of_vertex, 1);
+			cudaDeviceSynchronize();
+		 }
+
+		//
+		//	Form vertex offset array
+		//	Result: vertex offser array => 2 4 10 ...
+		//
 		inclusive_scan(device,
 			 full_vertex_array,
 			 full_vertex_array+number_of_vertex,
 			 full_vertex_array);
-			 	std::cout << "Inclusive scan ok";
+
+		if(debug)
+			std::cout << "Inclusive scan ok";
 		// Clean temporal array
 		device_free(temp_indx);
 
@@ -336,6 +409,7 @@ bool directed;
 		{
 			num_edges = number_of_vertex*number_of_vertex;
 		}
+		device_free(full_edge_array);
 		full_edge_array = device_malloc<vertex>(num_edges);
 		fill(device, full_edge_array, full_edge_array + num_edges, -1);
 
@@ -350,7 +424,12 @@ bool directed;
 			full_edge_array,
 			coo_to_csr_converter(from_array, to_array,
 				number_of_edges));
-				device_free(temp_indx2);
-				std::cout << "Yep ";
+
+
+		device_free(temp_indx2);
+
+		if(debug)
+			std::cout<< std::endl << "Converting to CSR done " << std::endl;
 	}
 };
+#endif

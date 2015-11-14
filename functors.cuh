@@ -131,7 +131,7 @@ struct  printer
   __host__ __device__
     void operator()(vertex t)
   {
-      printf("%u ", t);
+      printf("%d ", t);
   }
 
 };
@@ -155,18 +155,341 @@ struct  printer_opacity
 *   Transform min and max in pair of arrays
 *   Input:   For each tuple<double double> return (min, max )
 **********************************************************/
+
 struct min_max_transform
 {
 
   __host__ __device__
-  pair<double, double> operator()(tuple<double, double> t)
+    tuple<double, double> operator()(tuple<double, double> t)
   {
 
-      double min = get<0>(t) - get<1>(t) < 0? get<0>(t) : get<1>(t);
-      double max = get<0>(t) -get<1>(t) > 0 ? get<0>(t) : get<1>(t);
-
-      return make_pair(min, max);
+    double min = get<0>(t) - get<1>(t) < 0? get<0>(t) : get<1>(t);
+    double max = get<0>(t) -get<1>(t) > 0 ? get<0>(t) : get<1>(t);
+    return make_tuple(min,max);
   }
+};
+
+/***********************************
+* Min max transoform for integers
+*
+***********************************/
+struct min_max_transform_int
+{
+
+__host__ __device__
+  tuple<int, int> operator()(tuple<int, int> t)
+{
+    int min = get<0>(t) - get<1>(t) < 0? get<0>(t) : get<1>(t);
+    int max = get<0>(t) -get<1>(t) > 0 ? get<0>(t) : get<1>(t);
+    return make_tuple(min,max);
+}
+
+
+};
+/*********************************
+* Removing function
+**********************************/
+struct removing_funct
+{
+  __device__
+  removing_funct(
+    device_ptr<int> a_full_vertex_array,
+    device_ptr<vertex> a_full_edge_array,
+    int a_number_of_vertex) :
+  full_vertex_array(a_full_vertex_array),
+  full_edge_array(a_full_edge_array),
+  number_of_vertex(a_number_of_vertex)
+  {
+
+  }
+
+
+  __device__
+  void operator()(tuple<bool, vertex, vertex> t)
+  // should_remove, where_remove, what_remove
+  {
+    if(get<0>(t))
+    {
+      int level = 1;
+      int vertex_number = get<1>(t); // vertex_number
+      int starting_offset =
+        full_vertex_array[number_of_vertex*level + vertex_number - 1];
+      int ending_offset =
+        full_vertex_array[number_of_vertex*level + vertex_number];
+      device_ptr<vertex> remove_value =
+          lower_bound(device,
+            full_edge_array + starting_offset,
+            full_edge_array + ending_offset, get<2>(t));
+
+      int dist = distance(full_edge_array + starting_offset, remove_value);
+      __syncthreads();
+      full_edge_array[starting_offset + dist] = -1;
+    }
+  }
+  device_ptr<int> full_vertex_array;
+  device_ptr<vertex> full_edge_array;
+  int number_of_vertex;
+};
+
+
+/*********************************
+*
+*
+*********************************/
+struct to_minus_one
+{
+  __host__ __device__
+  vertex operator()(vertex t)
+  {
+    return -1;
+  }
+};
+
+struct is_minus_one
+{
+  __host__ __device__
+  bool operator()(tuple<int, int, int> t)
+  {
+    return get<0>(t)==-1? true:false;
+  }
+};
+
+
+struct found_in
+{
+  __host__ __device__
+  found_in(
+    device_ptr<int> a_expanded_array,
+    int a_new_size) :
+  expanded_array(a_expanded_array),
+  new_size(a_new_size)
+  {
+
+  }
+
+  __host__ __device__
+  bool operator()(vertex t)
+  {
+
+    return binary_search(device, expanded_array,
+                        expanded_array + new_size, t);
+  }
+  device_ptr<vertex> expanded_array;
+  int new_size;
+};
+
+/***********************************************************
+*   Form candiadets where to and what to remove
+*   Input:
+*       opacity_matrix, lessL_matrix, index in opacity_matrix
+*   Output:  For each tuple<opacity, opacity, int>
+*                return (where_start, where_end,
+*                        whar_start, what_end)
+*
+**********************************************************/
+struct form_remove_candidates
+{
+  __host__ __device__
+  form_remove_candidates(opacity a_threshold) :
+  threshold(a_threshold)
+  {
+
+  }
+
+
+  __host__ __device__
+  tuple<int, int> operator()(
+    tuple<opacity, opacity, int> t)
+  {
+
+      opacity opacity_value = get<0>(t);
+      opacity count_less_L = get<1>(t);
+      // From degree value
+      int index = get<2>(t);
+      // To degree value
+
+      int to_delete = ceil(count_less_L - threshold * count_less_L /opacity_value);
+
+
+     return make_tuple(index, to_delete);
+  }
+  opacity threshold;
+};
+
+struct more_than_threshold
+{
+  __host__ __device__
+  more_than_threshold(float a_threshold) : threshold(a_threshold)
+  {
+
+  }
+
+  __host__ __device__
+  bool operator()(tuple<opacity, opacity, int> t)
+  {
+    //	printf("SEARCHING distance %i \n", distance(start, end));
+
+
+      return get<0>(t) > threshold;
+  }
+
+  float threshold;
+};
+
+struct remove_index_former
+{
+  __host__ __device__
+  remove_index_former(device_ptr<int> a_degree_count,
+                      device_ptr<opacity> a_opacity_matrix,
+                      device_ptr<opacity> a_lessL_matrix,
+                      int a_max_degree,
+                      device_ptr<vertex> a_from,
+                      device_ptr<vertex> a_to,
+                      device_ptr<vertex> a_index) :
+  from(a_from),
+  to(a_to),
+  opacity_index(a_index),
+  degree_count(a_degree_count),
+  opacity_matrix(a_opacity_matrix),
+  lessL_matrix(a_lessL_matrix),
+  max_degree(a_max_degree)
+  {
+
+  }
+
+
+  __host__ __device__
+  void operator()(int removal)
+  {
+    int from_degree = (opacity_index[removal] / max_degree) + 1;
+    int to_degree =  (opacity_index[removal] % max_degree) + 1;
+
+    opacity min = degree_count[from_degree - 1] * degree_count[to_degree - 1];
+
+     if (from_degree  == to_degree)
+     {
+       opacity k = degree_count[from_degree-1];
+       min = k * (k-1);
+
+      }
+
+    //min = min * 2.0;
+    opacity added_value = 1.0/ (min);
+    opacity_matrix[opacity_index[removal]] = opacity_matrix[opacity_index[removal]] - added_value;
+    lessL_matrix[opacity_index[removal]] = lessL_matrix[opacity_index[removal]] - 1;
+
+    from[removal] = -1;
+    to[removal] = -1;
+    opacity_index[removal] = -1;
+  }
+  device_ptr<vertex> from;
+  device_ptr<vertex> to;
+  device_ptr<int> opacity_index;
+  device_ptr<int> degree_count;
+  device_ptr<opacity> opacity_matrix;
+  device_ptr<opacity> lessL_matrix;
+  int max_degree;
+};
+
+struct size_counter
+{
+
+  __host__ __device__
+  tuple<vertex, vertex> operator()(
+    tuple<vertex, vertex, vertex, vertex> t)
+  {
+      int from_start = get<0>(t);
+      int from_end = get<1>(t);
+
+      int to_start = get<2>(t);
+      int to_end = get<3>(t);
+
+      return make_tuple(from_end - from_start, to_end - to_start );
+
+  }
+
+};
+
+/****************************************
+* Functor for 4tuples. positive all values
+*****************************************/
+struct positive
+{
+  __host__ __device__
+  bool operator()(
+    tuple<vertex, vertex, vertex, vertex> t)
+  {
+      return get<0>(t) >= 0 && get<1>(t) >= 0 && get<2>(t) >= 0 && get<3>(t) >= 0;
+
+  }
+
+};
+
+/**************************************************************
+*    Search in full_edge_array and delete in next level
+*    returns current vertex - remove_value
+****************************************************************/
+struct seek_and_destroy
+{
+   __device__
+  seek_and_destroy(
+      int a_what_to_search,
+      int a_what_to_remove,
+      int a_current_level,
+      device_ptr<int> a_full_vertex_array,
+      device_ptr<vertex> a_full_edge_array,
+      int a_number_of_vertex,
+      device_ptr<int> a_new_vertex_array ):
+       what_to_search(a_what_to_search), what_to_remove(a_what_to_remove), current_level(a_current_level),
+       full_edge_array(a_full_edge_array), full_vertex_array(a_full_vertex_array), new_vertex_array(a_new_vertex_array),
+        number_of_vertex(a_number_of_vertex) { }
+
+  __device__
+  void operator()(int vertex_number)
+  {
+
+      // Device vector temporal array (candidate)
+
+      int start_offset = 0;
+      if(current_level!=0 || vertex_number != 0 )
+      {
+        start_offset = full_vertex_array[current_level*number_of_vertex + vertex_number-1];
+      }
+      int ending_offset = full_vertex_array[current_level*number_of_vertex + vertex_number];
+
+      // Search the presented from_vertex (what should be removed)
+      if (binary_search(device,
+                        full_edge_array + start_offset,
+                        full_edge_array + ending_offset, what_to_search)){
+
+                            // Search from where it could be expanded
+                            start_offset = full_vertex_array[(current_level+1)*number_of_vertex + vertex_number - 1];
+                            ending_offset = full_vertex_array[(current_level+1)*number_of_vertex + vertex_number];
+                            if (binary_search(device, full_edge_array + start_offset,
+                                              full_edge_array + ending_offset, what_to_remove))
+                                              {
+                                                device_ptr<int> temp_ptr = lower_bound(device,
+                                                                      full_edge_array + start_offset,
+                                                                      full_edge_array + ending_offset, what_to_remove);
+
+                                                // index where it should be removed
+                                                int index_to_remove = distance(full_edge_array + start_offset, temp_ptr);
+                                                __syncthreads();
+
+                                                full_edge_array[start_offset + index_to_remove] = -1;
+
+                                                int* k = raw_pointer_cast(new_vertex_array + vertex_number);
+                                                atomicSub(k, 1);
+
+                                              }
+                          }
+
+        }
+  int what_to_search, what_to_remove, current_level;
+  device_ptr<int> new_vertex_array;
+  device_ptr<int> full_vertex_array;
+  device_ptr<vertex> full_edge_array;
+  int number_of_vertex;
 };
 
 
@@ -183,6 +506,70 @@ struct counter
 
     return get<1>(t) - get<0>(t);
   }
+};
+
+struct opacity_pre_calc
+{
+  __device__
+  opacity_pre_calc(
+      device_ptr<opacity> a_opacity_matrix,
+      device_ptr<opacity> a_lessL_matrix,
+      device_ptr<int> a_vertex_degree,
+      device_ptr<int> a_degree_count,
+      int a_max_degree,
+      float a_threshold):
+      opacity_matrix(a_opacity_matrix),
+      lessL_matrix(a_lessL_matrix),
+      vertex_degree(a_vertex_degree),
+      degree_count(a_degree_count),
+      max_degree(a_max_degree),
+      threshold(a_threshold)
+  {
+
+  }
+  // from,  expanded
+  __device__
+    tuple<vertex, vertex> operator()(tuple<vertex,  vertex> t)
+  {
+
+    int from_degree = vertex_degree[get<0>(t)];
+    int to_degree = vertex_degree[get<1>(t)];
+    opacity min = degree_count[from_degree - 1] * degree_count[to_degree - 1];
+
+    int min_degree = from_degree;
+    int max_degree = to_degree;
+
+    int index = max_degree*(min_degree - 1) + (max_degree - 1);
+
+
+    opacity* k2 = raw_pointer_cast(lessL_matrix + index);
+     if (from_degree  == to_degree)
+     {
+       opacity k = degree_count[from_degree-1];
+       min = k * (k-1)/2;
+       atomicAdd(k2, 1.0/2.0);
+      }
+
+    min = min * 2.0;
+    opacity* k = raw_pointer_cast(opacity_matrix + index);
+    opacity added_value = 1.0/ (min);
+    atomicAdd(k, added_value);
+    atomicAdd(k2, 1.0/2.0);
+    int expanded_value = get<1>(t);
+    if (opacity_matrix[index] > threshold)
+    {
+      expanded_value = -1;
+    }
+    return make_tuple(get<0>(t), expanded_value);
+
+  }
+  device_ptr<opacity> opacity_matrix;
+  device_ptr<opacity> lessL_matrix;
+  device_ptr<int> vertex_degree;
+  device_ptr<int> degree_count;
+  int max_degree;
+  float threshold;
+
 };
 
 

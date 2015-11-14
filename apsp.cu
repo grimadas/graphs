@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
 	t1_time = dtime_usec(t1_time);
 	unsigned int t2_time = dtime_usec(0);
 
-
+	
 	_GPU_Floyd(H_G, H_Gpath, N, L);
 	t2_time = dtime_usec(t2_time);
 

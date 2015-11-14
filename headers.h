@@ -20,6 +20,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/permutation_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/binary_search.h>
 #include <thrust/adjacent_difference.h>
 
@@ -57,6 +58,7 @@
 #define _DTH cudaMemcpyDeviceToHost
 #define _HTD cudaMemcpyHostToDevice
 
+const int debug = 1;
 
 
 
@@ -89,7 +91,6 @@ typedef std::pair<std::pair<int,int>,int> Piii;
 #define opacity float
 
 #define USECPSEC 1000000ULL
-
 
 unsigned long long dtime_usec(unsigned long long start){
 
