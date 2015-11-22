@@ -1,66 +1,78 @@
 #include <stdio.h>
 
-__global__ void MyKernel(unsigned int *array, unsigned int arrayCount)
+/************************/
+/* TEST KERNEL FUNCTION */
+/************************/
+__global__ void MyKernel(int *a, int *b, int *c, int N)
 {
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx < arrayCount)
-  {
-    array[idx] *= array[idx];
-  }
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+    if (idx < N) { c[idx] = a[idx] + b[idx]; }
 }
 
-void launchMyKernel(unsigned int *array, unsigned int arrayCount)
-{
-  int blockSize;   // The launch configurator returned block size
-  int minGridSize; // The minimum grid size needed to achieve the
-                   // maximum occupancy for a full device launch
-  int gridSize;    // The actual grid size needed, based on input size
-
-  cudaOccupancyMaxPotentialBlockSize( &minGridSize, &blockSize,
-                                      MyKernel, 0, 0);
-  // Round up according to array size
-  gridSize = (arrayCount + blockSize - 1) / blockSize;
-  printf("GridSize %d. Block size: %d\n",
-         gridSize,blockSize);
-  MyKernel<<< gridSize, blockSize >>>(array, arrayCount);
-
-  cudaDeviceSynchronize();
-
-  // calculate theoretical occupancy
-  int maxActiveBlocks;
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks,
-                                                 MyKernel, blockSize,
-                                                 0);
-
-  int device;
-  cudaDeviceProp props;
-  cudaGetDevice(&device);
-  cudaGetDeviceProperties(&props, device);
-
-  float occupancy = (maxActiveBlocks * blockSize / props.warpSize) /
-                    (float)(props.maxThreadsPerMultiProcessor /
-                            props.warpSize);
-
-  printf("Launched blocks of size %d. Theoretical occupancy: %f\n",
-         blockSize, occupancy);
-}
-
-
+/********/
+/* MAIN */
+/********/
 int main()
 {
-  unsigned int arr_size = 1024 * 220000;
-  unsigned int *dev_a, *dev_b, *dev_c;    // device копии of a, b, c
-  unsigned int size = arr_size* sizeof( int );
-  unsigned int* a = new unsigned int[arr_size];
-  for(int i=0; i< arr_size; i++)
-  {
-    a[i] = i;
-  }
+    const int N = 50000000;
 
-  //выделяем память для device копий для a, b, c
-  cudaMalloc( (void**)&dev_a, size );
-  cudaMemcpy(dev_a, a, size, cudaMemcpyHostToDevice);
-  launchMyKernel(dev_a, arr_size);
-  cudaFree(dev_a);
-  return 0;
+    int blockSize;      // The launch configurator returned block size
+    int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch
+    int gridSize;       // The actual grid size needed, based on input size
+
+    int* h_vec1 = (int*) malloc(N*sizeof(int));
+    int* h_vec2 = (int*) malloc(N*sizeof(int));
+    int* h_vec3 = (int*) malloc(N*sizeof(int));
+    int* h_vec4 = (int*) malloc(N*sizeof(int));
+
+    int* d_vec1; cudaMalloc((void**)&d_vec1, N*sizeof(int));
+    int* d_vec2; cudaMalloc((void**)&d_vec2, N*sizeof(int));
+    int* d_vec3; cudaMalloc((void**)&d_vec3, N*sizeof(int));
+
+    for (int i=0; i<N; i++) {
+        h_vec1[i] = 10;
+        h_vec2[i] = 20;
+        h_vec4[i] = h_vec1[i] + h_vec2[i];
+    }
+
+    cudaMemcpy(d_vec1, h_vec1, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_vec2, h_vec2, N*sizeof(int), cudaMemcpyHostToDevice);
+
+    float time;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
+
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, MyKernel, 0, N);
+
+    // Round up according to array size
+    gridSize = (N + blockSize - 1) / blockSize;
+
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Occupancy calculator elapsed time:  %3.3f ms \n", time);
+
+    cudaEventRecord(start, 0);
+
+    MyKernel<<<gridSize, blockSize>>>(d_vec1, d_vec2, d_vec3, N);
+
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("Kernel elapsed time:  %3.3f ms \n", time);
+
+    printf("Blocksize %i\n", blockSize);
+
+    cudaMemcpy(h_vec3, d_vec3, N*sizeof(int), cudaMemcpyDeviceToHost);
+
+    for (int i=0; i<N; i++) {
+        if (h_vec3[i] != h_vec4[i]) { printf("Error at i = %i! Host = %i; Device = %i\n", i, h_vec4[i], h_vec3[i]); return; };
+    }
+
+    printf("Test passed\n");
+    return 0;
+
 }
