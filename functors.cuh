@@ -175,7 +175,6 @@ struct min_max_transform
 ***********************************/
 struct min_max_transform_int
 {
-
 __host__ __device__
   tuple<int, int> operator()(tuple<int, int> t)
 {
@@ -183,7 +182,6 @@ __host__ __device__
     int max = get<0>(t) -get<1>(t) > 0 ? get<0>(t) : get<1>(t);
     return make_tuple(min,max);
 }
-
 
 };
 /*********************************
@@ -247,8 +245,9 @@ struct to_minus_one
 
 struct is_minus_one
 {
+  template <typename Tuple>
   __host__ __device__
-  bool operator()(tuple<int, int, int> t)
+  bool operator()(Tuple t)
   {
     return get<0>(t)==-1? true:false;
   }
@@ -277,6 +276,34 @@ struct found_in
   device_ptr<vertex> expanded_array;
   int new_size;
 };
+
+/*****************************************************
+*
+*
+*****************************************************/
+struct to_from_vertex
+{
+  __host__ __device__
+  to_from_vertex(device_ptr<int> a_search_array, int a_size) :
+  search_array(a_search_array), size(a_size)
+  {
+
+  }
+
+
+  __host__ __device__
+  vertex operator()(int index)
+  {
+
+      device_ptr<int> temp_ptr = lower_bound(device, search_array,
+                                                     search_array + size,
+                                                     index);
+      int index_vertex = distance(search_array, temp_ptr);
+      return index_vertex;
+  }
+  device_ptr<int> search_array;
+  int size;
+  };
 
 /***********************************************************
 *   Form candiadets where to and what to remove
@@ -315,7 +342,9 @@ struct form_remove_candidates
   }
   opacity threshold;
 };
-
+/*******
+* If opacity value is more than threshold
+*/
 struct more_than_threshold
 {
   __host__ __device__
@@ -335,7 +364,10 @@ struct more_than_threshold
 
   float threshold;
 };
-
+/*******************************
+* Initial remove in coo format
+*
+**********************************/
 struct remove_index_former
 {
   __host__ __device__
@@ -391,6 +423,9 @@ struct remove_index_former
   int max_degree;
 };
 
+/******************************
+* Calucate difference in tuple
+********************************/
 struct size_counter
 {
 
@@ -407,7 +442,43 @@ struct size_counter
       return make_tuple(from_end - from_start, to_end - to_start );
 
   }
+};
 
+struct to_negative
+{
+  __host__ __device__
+  to_negative(int an_except_state):
+        except_state(an_except_state)
+  {
+
+  }
+  __host__ __device__
+  vertex operator()(vertex t)
+  {
+      if (t==0)
+        return -except_state;
+      return -(t);
+  }
+  int except_state;
+};
+
+
+struct to_positive
+{
+  __host__ __device__
+  to_positive(int an_except_state):
+        except_state(an_except_state)
+  {
+
+  }
+  __host__ __device__
+  vertex operator()(vertex t)
+  {
+      if (t==-except_state)
+        return 0;
+      return -(t);
+  }
+  int except_state;
 };
 
 /****************************************
@@ -423,6 +494,32 @@ struct positive
 
   }
 
+};
+/************************************************
+* Functor for general Tuples.
+Checking only if the first is non_negative
+*****************************************/
+struct non_negative
+{
+
+  template <typename Tuple>
+  __host__ __device__
+  bool operator()(Tuple t)
+  {
+      return get<0>(t) >= 0;
+
+  }
+};
+
+struct negative
+{
+
+  __host__ __device__
+  bool operator()(vertex t)
+  {
+      return t < 0;
+
+  }
 };
 
 /**************************************************************
@@ -508,69 +605,6 @@ struct counter
   }
 };
 
-struct opacity_pre_calc
-{
-  __device__
-  opacity_pre_calc(
-      device_ptr<opacity> a_opacity_matrix,
-      device_ptr<opacity> a_lessL_matrix,
-      device_ptr<int> a_vertex_degree,
-      device_ptr<int> a_degree_count,
-      int a_max_degree,
-      float a_threshold):
-      opacity_matrix(a_opacity_matrix),
-      lessL_matrix(a_lessL_matrix),
-      vertex_degree(a_vertex_degree),
-      degree_count(a_degree_count),
-      max_degree(a_max_degree),
-      threshold(a_threshold)
-  {
-
-  }
-  // from,  expanded
-  __device__
-    tuple<vertex, vertex> operator()(tuple<vertex,  vertex> t)
-  {
-
-    int from_degree = vertex_degree[get<0>(t)];
-    int to_degree = vertex_degree[get<1>(t)];
-    opacity min = degree_count[from_degree - 1] * degree_count[to_degree - 1];
-
-    int min_degree = from_degree;
-    int max_degree = to_degree;
-
-    int index = max_degree*(min_degree - 1) + (max_degree - 1);
-
-
-    opacity* k2 = raw_pointer_cast(lessL_matrix + index);
-     if (from_degree  == to_degree)
-     {
-       opacity k = degree_count[from_degree-1];
-       min = k * (k-1)/2;
-       atomicAdd(k2, 1.0/2.0);
-      }
-
-    min = min * 2.0;
-    opacity* k = raw_pointer_cast(opacity_matrix + index);
-    opacity added_value = 1.0/ (min);
-    atomicAdd(k, added_value);
-    atomicAdd(k2, 1.0/2.0);
-    int expanded_value = get<1>(t);
-    if (opacity_matrix[index] > threshold)
-    {
-      expanded_value = -1;
-    }
-    return make_tuple(get<0>(t), expanded_value);
-
-  }
-  device_ptr<opacity> opacity_matrix;
-  device_ptr<opacity> lessL_matrix;
-  device_ptr<int> vertex_degree;
-  device_ptr<int> degree_count;
-  int max_degree;
-  float threshold;
-
-};
 
 
 /***********************************************

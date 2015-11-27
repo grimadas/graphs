@@ -7,28 +7,524 @@
 #include "graph.cuh"
 
 
-
-void calc_apsp(Graph &graph)
+/**
+*		Filling the arrays that will be further expanded.
+*		PostCondition: filled from, to, inter
+*/
+void form_copy_arrays(Graph& graph,
+											device_ptr<vertex> temp_from,
+											device_ptr<vertex> inter_vertex,
+											device_ptr<vertex> temp_to,
+											int current_level,
+											int starting_point,
+											int ending_point)
 {
-	for (int current_level = 1; current_level < graph.L_VALUE; current_level++)
+	/* Form temp to an temp from vector from edge arrray */
+	int number_edges_to_process = ending_point - starting_point;
+	copy(device, graph.full_edge_array + starting_point,
+							 graph.full_edge_array + ending_point,
+							 inter_vertex);
+
+	copy(device,
+		graph.full_edge_array + starting_point,
+		 graph.full_edge_array + ending_point,
+		 temp_from);
+
+	 std::cout << "Forming copy arrays " << std::endl;
+		//Form from vertex array
+		transform(
+			device,
+			temp_from,
+			temp_from + number_edges_to_process,
+			temp_from,
+			previous_el(current_level * graph.number_of_vertex + 1));
+
+	/* Store begining and ending */
+	copy(
+		device,
+		make_permutation_iterator(graph.full_vertex_array, inter_vertex),
+		make_permutation_iterator(graph.full_vertex_array, inter_vertex + number_edges_to_process),
+		temp_to);
+
+	copy(
+		device,
+		make_permutation_iterator(graph.full_vertex_array, temp_from),
+		make_permutation_iterator(graph.full_vertex_array,
+		temp_from + number_edges_to_process), temp_from);
+	 std::cout << "Copy candidates are formed " << std::endl;
+}
+
+
+/**
+*	  Caluclate position in new array for each vertex
+*		Postconditon: position in array filled
+*/
+void calc_position_in_new_array(device_ptr<int> temp_from,
+																device_ptr<int> temp_to,
+																device_ptr<int> position_in_array,
+																int number_edges_to_process)
+{
+		transform(
+			device,
+			make_zip_iterator(make_tuple(temp_from, temp_to)),
+			make_zip_iterator(make_tuple(temp_from + number_edges_to_process,
+												temp_to + number_edges_to_process)),
+			position_in_array,
+			counter());
+
+		 /*
+			Forming offset array from process number, step 2:
+			2 4 4 => 2 6 10
+			*/
+		inclusive_scan(device, position_in_array,
+									position_in_array + number_edges_to_process,
+									position_in_array);
+}
+
+
+/**
+*	Renew vertex offset in graph in current level
+*
+*/
+void renew_graph_offset(Graph& graph,
+												device_ptr<int> new_offset_array,
+												int current_level)
+{
+			// Renew vertex_offset array :
+  		copy(device, new_offset_array, new_offset_array + graph.number_of_vertex,
+						 graph.full_vertex_array + (current_level)*graph.number_of_vertex);
+			inclusive_scan(device,
+					graph.full_vertex_array + (current_level)*graph.number_of_vertex - 1,
+					graph.full_vertex_array + (current_level+1)*graph.number_of_vertex,
+	  			graph.full_vertex_array + (current_level)*graph.number_of_vertex - 1);
+
+			copy(device, new_offset_array,
+					 new_offset_array + graph.number_of_vertex,
+					 graph.real_vertex_degrees + (current_level) * graph.number_of_vertex);
+}
+
+
+
+/********************************************************************
+*	L opacity matrix calculation
+*
+*	 Input: Graph with non empty full_edge_array and full_vertex_array
+*	 Output: opacity_matrix
+*
+*********************************************************************/
+void calc_L_opacity(Graph &graph,
+	device_ptr<int> from_vertex_array,
+	device_ptr<vertex> expanded_array,
+	device_ptr<int>  new_degrees,int total_size)
+{
+		// Forming indexes (from vertex)
+		int N = total_size;
+		//
+		//	Expanding indexes. Finding break points
+		//	Example: 0 1 2 3 4 .. 20 => 0 0 1 0 0 0 1 ...
+		//
+
+		device_ptr<int> from_degree = device_malloc<int>(N);
+
+		//
+		//	Transforming from indexes into degrees:
+		//	Example:  0 0 1 1 1 1 2 2 2.. => 2 2 4 4 4 4 ...
+		//
+
+
+		transform(
+			device,
+			make_permutation_iterator(graph.initial_vertex_degrees, from_vertex_array),
+			make_permutation_iterator(graph.initial_vertex_degrees, from_vertex_array + N),
+			from_degree, identity<vertex>());
+
+		device_ptr<int> to_degree = device_malloc<int>(N);
+
+		transform(
+			device,
+			make_permutation_iterator(graph.initial_vertex_degrees, expanded_array),
+			make_permutation_iterator(graph.initial_vertex_degrees, expanded_array + N),
+			to_degree, identity<vertex>());
+
+
+		/*
+		*  Find max and min in zip iterator of to - from pairs
+		*/
+
+
+		transform(
+			device,
+			make_zip_iterator(make_tuple(from_degree, to_degree)),
+			make_zip_iterator(make_tuple(from_degree + N, to_degree + N)),
+			make_zip_iterator(make_tuple(from_degree, to_degree)),
+			min_max_transform());
+
+		//
+		// 	Opacity  matrix forming. Now it is n^ 2 memory TODO: IN PARALLEL using cuda kernel
+		// 	Assumptions !!: Not optimum for undericted (div 2).
+		// 	Problem with same degree. Example: {4 = > 4} - must count only degree of one.
+		//
+
+		device_ptr<int> opacity_index = device_malloc<int>(N);
+		if (debug)
+			std::cout << "Opacity  started ok";
+
+		int gridsize =(N + BLOCK_SIZE - 1) / BLOCK_SIZE;
+		opacity_former<<<gridsize, BLOCK_SIZE>>>(from_degree,
+																						 to_degree,
+																						 opacity_index,
+																						 graph.degree_count,
+																						 graph.opacity_matrix,
+																						 graph.lessL_matrix,
+																						 from_vertex_array,
+																						 expanded_array,
+																						 new_degrees,
+																						 graph.number_of_vertex + 1,
+																						 graph.max_degree,
+																						 graph.threshold,
+																						 N);
+
+
+		cudaDeviceSynchronize();
+
+		// Remove all edges more than threshold
+		if (debug)
+		{
+			int num = N;
+			domain temp_array = new vertex[num];
+			std::cout << "After opacity removal " << std::endl;
+			std::cout << "Opacity index: ";
+			copy(opacity_index, opacity_index + num, temp_array);
+			for(int i=0; i < num; i++)
+				std::cout << temp_array[i] << " ";
+			std::cout << std::endl;
+			std::cout << " Expanded : ";
+			copy(expanded_array, expanded_array + num, temp_array);
+			for(int i=0; i < num; i++)
+				std::cout << temp_array[i] << " ";
+			std::cout << std::endl;
+			delete temp_array;
+
+		}
+}
+
+
+/**
+*		Remove edges that are non_violating rule.
+*		All violated values are negative
+*		Return new size of an array
+*/
+int remove_non_violated_edges(
+			device_ptr<int> temp_expanded,
+			device_ptr<int> temp_from_array,
+			int number_of_vertex,
+			int true_unique_size)
+{
+	zip_iterator< tuple < device_ptr<int>,  device_ptr<int> > > new_ending =
+	remove_if(device,
+						make_zip_iterator(make_tuple(temp_expanded, temp_from_array)),
+						make_zip_iterator(make_tuple(temp_expanded + true_unique_size,
+																				 temp_from_array + true_unique_size)),
+						non_negative());
+	device_ptr<int> temp_ptr = get<0>(new_ending.get_iterator_tuple());
+	int new_size = distance(temp_expanded, temp_ptr);
+	// Translate removing array back to positive
+	transform(device, temp_expanded,
+										temp_expanded + new_size,
+										temp_expanded,
+										to_positive(number_of_vertex+1));
+	return new_size;
+}
+
+
+/**
+*		Generate removing candiadets using inter_vertex_array_copy
+*/
+int transform_removing_edges(
+													 device_ptr<vertex> inter_vertex_array_copy,
+													 device_ptr<vertex> expanded_array_copy,
+													 device_ptr<int> positions_vertex_current_level,
+													 int true_size,
+													 device_ptr<vertex> temp_from_array,
+													 device_ptr<vertex> temp_expanded,
+													 int number_of_vertex,
+													 int true_unique_size)
+{
+
+
+	int new_size = remove_non_violated_edges(temp_expanded, temp_from_array,
+																						number_of_vertex, true_unique_size);
+	if(debug)
+	{
+	 	std::cout << " Temp expanded ";
+		for(int i=0; i< new_size; i++)
+			std::cout << temp_expanded[i] << " ";
+		std::cout << std::endl;
+
+		std::cout << " Temp from ";
+		for(int i=0; i< new_size; i++)
+			std::cout << temp_from_array[i] << " ";
+		std::cout << std::endl;
+	}
+
+	int grid_size_remove1 = (new_size + BLOCK_SIZE - 1)/BLOCK_SIZE;
+	form_remove_array<<<grid_size_remove1, BLOCK_SIZE>>>(
+																	expanded_array_copy,
+		 															positions_vertex_current_level,
+																	temp_from_array,
+		 															temp_expanded,
+																	number_of_vertex,
+																	new_size);
+		new_size =
+				remove_non_violated_edges(expanded_array_copy, inter_vertex_array_copy,
+			 	  												number_of_vertex,
+																	true_size);
+		return new_size;
+}
+
+
+
+/**
+*		At current level :
+*			1. copy all vertexes
+*				calc from_vertex (indexes)
+*			2. sort them -> values
+*			3. find begin and end in values all inter_vertex_array_copy(that should be removed)
+*			4.
+*/
+void edge_remove_step(Graph& graph,
+											device_ptr<vertex> inter_vertex_array_copy,
+											device_ptr<vertex> expanded_array_copy,
+											int remove_array_size, int level)
+{
+	int starter = 0;
+	int adding_offset = 0;
+	if (level!=0)
 	{
 
-			int starting_point = 0;
-			int ending_point = graph.full_vertex_array[current_level * graph.number_of_vertex - 1];
-			if (current_level != 1)
-			{
-				starting_point = graph.full_vertex_array[(current_level - 1) * graph.number_of_vertex - 1]; // previous last element
-			}
-
+		adding_offset = (level)*graph.number_of_vertex - 1;
+		starter = graph.full_vertex_array[adding_offset];
 	}
+	int ender = graph.full_vertex_array[(level+1)*graph.number_of_vertex - 1];
+	device_ptr<int> indexes = device_malloc<int>(ender - starter);
+	copy(device, make_counting_iterator(starter),
+							 make_counting_iterator(ender),
+							 indexes);
+	// sequence(device, indexes, indexes + ender - starter);
+	// Now we store the from vertex
+
+
+	transform(device, indexes, indexes + ender - starter,
+					 indexes,
+					 to_from_vertex(graph.full_vertex_array + adding_offset,
+					  							graph.number_of_vertex));
+
+	device_ptr<int> values = device_malloc<int>(ender - starter);
+	copy(device, graph.full_edge_array + starter, graph.full_edge_array + ender, values);
+	sort_by_key(device, values, values + ender - starter,indexes);
+
+	device_ptr<unsigned int> temp_start_points = device_malloc<unsigned int>(remove_array_size);
+	lower_bound(  device, values, values + ender - starter,
+								 inter_vertex_array_copy,  inter_vertex_array_copy + remove_array_size,
+								 temp_start_points);
+
+	device_ptr<unsigned int> temp_end_points = device_malloc<unsigned int>(remove_array_size);
+	upper_bound( device, values, values + ender - starter,
+								inter_vertex_array_copy,  inter_vertex_array_copy + remove_array_size,
+								temp_end_points);
+	device_ptr<int> temp_offsets = device_malloc<int>(remove_array_size);
+	transform(device, make_zip_iterator(
+											make_tuple(temp_start_points, temp_end_points)),
+										make_zip_iterator(
+											make_tuple(temp_start_points + remove_array_size,
+																			temp_end_points + remove_array_size)),
+										temp_offsets,
+										counter());
+	inclusive_scan(device, temp_offsets, temp_offsets + remove_array_size, temp_offsets);
+	int total_size = temp_offsets[remove_array_size - 1];
+	device_ptr<int> temp_removing_array = device_malloc<int>(total_size);
+	fill(device, temp_removing_array, temp_removing_array + total_size, -1);
+	dim3 grid_size_remove((remove_array_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
+	edge_remove_by_vertex<<<grid_size_remove, BLOCK_SIZE>>> ( expanded_array_copy,
+																													 temp_start_points,
+																													 temp_end_points,
+																													 indexes,
+																													 temp_offsets,
+																													 temp_removing_array,
+																													 graph.full_vertex_array,
+																													 graph.full_edge_array,
+																													 graph.real_vertex_degrees + graph.number_of_vertex*(level+1),
+																													 graph.number_of_vertex,
+																													 level, remove_array_size);
+	cudaDeviceSynchronize();
+	dim3 grid_size_uni((graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE);
+	//sorter<<<grid_size_uni, BLOCK_SIZE>>>(graph.full_edge_array,
+	//																			graph.full_vertex_array,
+	//																			level + 1,
+	//																			graph.number_of_vertex);
+	device_free(indexes);
+	device_free(values);
+	device_free(temp_start_points);
+	device_free(temp_end_points);
+	cudaDeviceSynchronize();
 }
 
-void rebalance()
+
+void expand_step(Graph &graph, int current_level)
 {
+	int starting_point = 0;
+	int ending_point = graph.full_vertex_array[current_level * graph.number_of_vertex - 1];
+	if (current_level != 1)
+	{
+		 starting_point = graph.full_vertex_array[(current_level - 1) * graph.number_of_vertex - 1]; // previous last element
+	}
+
+	vertex number_edges_to_process = ending_point- starting_point;
+	 // Value to add as an offset (previous end - current begin)
+
+	device_ptr<vertex> inter_vertex = device_malloc<vertex>(number_edges_to_process);
+	device_ptr<vertex> temp_to =  device_malloc<vertex>(number_edges_to_process);
+	device_ptr<vertex> temp_from =  device_malloc<vertex>(number_edges_to_process);
+
+	form_copy_arrays(graph, temp_from, inter_vertex, temp_to,
+											 current_level,
+											 starting_point, ending_point);
+	/*
+	*	Array of vertex, from which we will expand. Proces vertex
+	*/
+	device_ptr<vertex> temp_vertexes =  device_malloc<vertex>(graph.number_of_vertex);
+	device_ptr<vertex> process_vetxes = device_malloc<vertex>(number_edges_to_process+1);
+	copy(device,
+			 graph.real_vertex_degrees + (current_level-1)*graph.number_of_vertex,
+			 graph.real_vertex_degrees + (current_level)*graph.number_of_vertex,
+			 temp_vertexes);
+
+	expand(temp_vertexes, temp_vertexes + graph.number_of_vertex,
+				 make_counting_iterator<vertex>(0), process_vetxes);
+	device_free(temp_vertexes);
+
+ device_ptr<vertex>  position_in_array = device_malloc<vertex>(number_edges_to_process);
+
+ calc_position_in_new_array(temp_from, temp_to, position_in_array,
+																				 number_edges_to_process);
+
+ int full_size = position_in_array[number_edges_to_process - 1];
+ device_ptr<vertex> expanded_array = device_malloc<vertex>(full_size);
+
+
+ // Fill with -1 initially
+ fill(device,
+		 expanded_array,
+		 expanded_array + full_size,
+		 -1);
+
+
+ device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
+ fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
+ // TODO Change here
+ int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+
+ //************************ Starting expander function **********************************************/
+
+ if(debug)
+	 std::cout << "Starting main expand once kernel " << " Number of edges to process is " << grid_size <<std::endl;
+
+ simple_expander<<< grid_size, BLOCK_SIZE >>>(
+	 process_vetxes,
+	 temp_from, temp_to,
+	 graph.full_vertex_array, graph.full_edge_array,
+	 position_in_array,
+	 expanded_array,
+	 number_edges_to_process,
+	 graph.number_of_vertex,
+	 current_level,
+	 positions_vertex_current_level);
+
+ cudaDeviceSynchronize();
+ device_free(temp_from);
+ device_free(temp_to);
+ device_free(process_vetxes);
+ device_free(inter_vertex);
+
+
+ if (debug)
+	 std::cout << "Expand kernel finished working " <<std::endl;
+
+
+ /*
+ *	Remove empty, non used data
+ */
+ thrust::remove(device,
+	 				expanded_array,
+	 				expanded_array + full_size,
+					-1);
+
+
+ /*********************************    Expander kernel finished ************************************/
+
+ /************************************ Unifier kernel prepare **************************************/
+
+
+ inclusive_scan(device, positions_vertex_current_level,
+											positions_vertex_current_level + graph.number_of_vertex,
+											positions_vertex_current_level);
+
+ if(debug)
+	 std::cout << "Position vertex " << positions_vertex_current_level[graph.number_of_vertex - 1] << std::endl;
+
+ int true_size = positions_vertex_current_level[graph.number_of_vertex - 1];
+ device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
+
+
+ // Remove all dublicates. Calculate the opacity, remove if needed
+ if (debug)
+	 std::cout << "Starting unification " << std::endl;
+
+ /******************************************* Unifier kernel start *************************************/
+
+ grid_size = ((graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+ simple_unifier <<<grid_size, BLOCK_SIZE >>>(	expanded_array,
+																			 positions_vertex_current_level,
+																			 vertex_ending_offsets,
+																			 graph.number_of_vertex);
+
+ cudaDeviceSynchronize();
+ // Now we have unique expanded_array
+
+ int proceed_size = vertex_ending_offsets[graph.number_of_vertex - 1];
+
+ int true_unique_size =
+ reduce(device, vertex_ending_offsets,
+								vertex_ending_offsets + graph.number_of_vertex);
+
+ /******************************************************* Unifier kernel ready ***********************************************/
+
+ renew_graph_offset(graph, vertex_ending_offsets, current_level);
+
+ if(debug)
+		 std::cout << "Starting copier " << std::endl;
+
+	 /******************************************************* Edge copy kernel start  ********************************************/
+
+	 edge_copier<<<grid_size, BLOCK_SIZE>>>(
+ 		expanded_array,
+ 		positions_vertex_current_level,
+ 		vertex_ending_offsets,
+ 		graph.full_vertex_array,
+ 		graph.full_edge_array,
+ 		current_level,
+ 		graph.number_of_vertex );
+	 cudaDeviceSynchronize();
+	 device_free(expanded_array);
+	 device_free(positions_vertex_current_level);
+	 device_free(vertex_ending_offsets);
+
+
+	 /****************************************************** Edge copied finished*********************************************************/
 
 }
-
-
 
 
 /*
@@ -40,439 +536,384 @@ void form_full_level_graph(Graph &graph)
 	for (int current_level = 1; current_level < graph.L_VALUE; current_level++)
 	{
 
-			int starting_point = 0;
-			int ending_point = graph.full_vertex_array[current_level * graph.number_of_vertex - 1];
-			if (current_level != 1)
-			{
-				starting_point = graph.full_vertex_array[(current_level - 1) * graph.number_of_vertex - 1]; // previous last element
-			}
+				 int starting_point = 0;
+				 int ending_point = graph.full_vertex_array[current_level * graph.number_of_vertex - 1];
+				 if (current_level != 1)
+				 {
+						starting_point = graph.full_vertex_array[(current_level - 1) * graph.number_of_vertex - 1]; // previous last element
+				 }
 
-			vertex number_edges_to_process = ending_point- starting_point;
-			// Value to add as an offset (previous end - current begin)
+				 vertex number_edges_to_process = ending_point- starting_point;
+					// Value to add as an offset (previous end - current begin)
 
-			device_ptr<vertex> inter_vertex = device_malloc<vertex>(number_edges_to_process);
-			device_ptr<vertex> temp_to =  device_malloc<vertex>(number_edges_to_process);
-			device_ptr<vertex> temp_from =  device_malloc<vertex>(number_edges_to_process);
+				 device_ptr<vertex> inter_vertex = device_malloc<vertex>(number_edges_to_process);
+				 device_ptr<vertex> temp_to =  device_malloc<vertex>(number_edges_to_process);
+				 device_ptr<vertex> temp_from =  device_malloc<vertex>(number_edges_to_process);
 
-			/* Form temp to an temp from vector from edge arrray */
-			copy(device, graph.full_edge_array + starting_point,
-									 graph.full_edge_array + ending_point,
-									 inter_vertex);
+				 form_copy_arrays(graph, temp_from, inter_vertex, temp_to,
+															current_level,
+															starting_point, ending_point);
+				 /*
+				 *	Array of vertex, from which we will expand. Proces vertex
+				 */
+				 device_ptr<vertex> temp_vertexes =  device_malloc<vertex>(graph.number_of_vertex);
+				 device_ptr<vertex> process_vetxes = device_malloc<vertex>(number_edges_to_process+1);
+				 copy(device,
+							graph.real_vertex_degrees + (current_level-1)*graph.number_of_vertex,
+							graph.real_vertex_degrees + (current_level)*graph.number_of_vertex,
+							temp_vertexes);
 
-			copy(device,
-				graph.full_edge_array + starting_point,
-				 graph.full_edge_array + ending_point,
-				 temp_from);
+				 expand(temp_vertexes, temp_vertexes + graph.number_of_vertex,
+ 				 				make_counting_iterator<vertex>(0), process_vetxes);
+				 device_free(temp_vertexes);
 
-			 std::cout << "Ok in 1" << std::endl;
-				//
-				transform(
-					device,
-					temp_from,
-					temp_from + number_edges_to_process,
-					temp_from,
-					previous_el(current_level * graph.number_of_vertex + 1));
+			  device_ptr<vertex>  position_in_array = device_malloc<vertex>(number_edges_to_process);
 
-			/* Store begining and ending */
-			copy(
-				device,
-				make_permutation_iterator(graph.full_vertex_array, inter_vertex),
-				make_permutation_iterator(graph.full_vertex_array, inter_vertex + number_edges_to_process),
-				temp_to);
+			  calc_position_in_new_array(temp_from, temp_to, position_in_array,
+																								number_edges_to_process);
 
-			copy(
-				device,
-				make_permutation_iterator(graph.full_vertex_array, temp_from),
-				make_permutation_iterator(graph.full_vertex_array,
-				temp_from + number_edges_to_process), temp_from);
-				// std::cout << "Ok in 2" << std::endl;
+				int full_size = position_in_array[number_edges_to_process - 1];
+				device_ptr<vertex> expanded_array = device_malloc<vertex>(full_size);
+				device_ptr<vertex> inter_vertex_array = device_malloc<vertex>(full_size);
 
-			/*
-			*	Array of vertex, from which we will expand. Proces vertex
-			*/
-			device_ptr<vertex> temp_vertexes =  device_malloc<vertex>(graph.number_of_vertex);
-			device_ptr<vertex> process_vetxes = device_malloc<vertex>(number_edges_to_process+1);
-			copy(device,
-				   graph.full_vertex_array + (current_level-1)*graph.number_of_vertex,
-					 graph.full_vertex_array + (current_level)*graph.number_of_vertex ,
-					temp_vertexes);
+				// Fill with -1 initially
+				fill(device,
+						expanded_array,
+					  expanded_array + full_size,
+						-1);
 
-			adjacent_difference(device, temp_vertexes, temp_vertexes + graph.number_of_vertex, temp_vertexes);
-			temp_vertexes[0] = temp_vertexes[0] - starting_point;
 
-			expand(temp_vertexes, temp_vertexes + graph.number_of_vertex,
-						 make_counting_iterator<vertex>(0), process_vetxes);
-			device_free(temp_vertexes);
-			// std::cout << "Ok in 3" << std::endl;
-			/*
-				Offset array, step 1:
-				Result <- Temp_TO - Temp_FROM
-			*/
-			device_ptr<vertex>  position_in_array = device_malloc<vertex>(number_edges_to_process);
+				device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
+				fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
+				// TODO Change here
+				int grid_size = (number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-			transform(
-					device,
-					make_zip_iterator(make_tuple(temp_from, temp_to)),
-					make_zip_iterator(make_tuple(temp_from + number_edges_to_process,
-														temp_to + number_edges_to_process)),
+
+				//************************ Starting expander function **********************************************/
+
+			  if(debug)
+					std::cout << "Starting main expand once kernel " << " Number of edges to process is " << grid_size <<std::endl;
+
+				expander<<< grid_size, BLOCK_SIZE >>>(
+					process_vetxes, inter_vertex,
+					temp_from, temp_to,
+					graph.full_vertex_array, graph.full_edge_array,
 					position_in_array,
-					counter());
-				// std::cout << "Ok in 4" << std::endl;
+					expanded_array,
+					inter_vertex_array,
+					number_edges_to_process,
+					graph.number_of_vertex,
+					current_level,
+					positions_vertex_current_level);
+
+				cudaDeviceSynchronize();
+				device_free(temp_from);
+				device_free(temp_to);
+				device_free(process_vetxes);
+				device_free(inter_vertex);
+				device_free(position_in_array);
+				cudaFree(0);
+
+				if (debug)
+					std::cout << "Expand kernel finished working " <<std::endl;
+
+
 				/*
-					Forming offset array from process number, step 2:
-					2 4 4 => 2 6 10
-					*/
-				inclusive_scan(device, position_in_array,
-							 		    position_in_array + number_edges_to_process,
-									    position_in_array);
-
-		//	domain prints = new vertex[number_edges_to_process];
-		//	copy(position_in_array, position_in_array + number_edges_to_process, prints);
-		//	std::cout << "Position In array:  " << std::endl;
-		//	for(int i=0; i < number_edges_to_process; i++)
-		//	{
-		//		std::cout << prints[i]<<" ";
-		//	}
-
-			//// std::cout << "Ok in 5" << std::endl;
-			int full_size = position_in_array[number_edges_to_process - 1];
-			device_ptr<vertex> expanded_array = device_malloc<vertex>(full_size);
-			device_ptr<vertex> from_vertex_array = device_malloc<vertex>(full_size);
-			device_ptr<vertex> inter_vertex_array = device_malloc<vertex>(full_size);
-
-			//fill(device, expanded_array, expanded_array + full_size, -1);
-			// process number contains the maximum needed memory to store if all vertexes are unique
-
-			//fill(device, from_vertex_array, from_vertex_array + full_size, -1);
-
-
-
-			fill(device,
-				make_zip_iterator(
-					make_tuple(expanded_array, from_vertex_array, inter_vertex_array)),
-				make_zip_iterator(
-					make_tuple(expanded_array + full_size,
-										 from_vertex_array + full_size,
-										 inter_vertex_array + full_size)),
-					make_tuple(-1,-1,-1));
-
-
-			int prev_max_position = full_size;
-
-			//  Expand array on one level
-			//	Can contain non unique values
-
-			device_ptr<vertex> positions_vertex_current_level = device_malloc<vertex>(graph.number_of_vertex);
-			fill(device, positions_vertex_current_level, positions_vertex_current_level + graph.number_of_vertex, 0);
-			dim3 grid_size((number_edges_to_process + BLOCK_SIZE - 1) / BLOCK_SIZE);
-		//	int grid_size =
-		  if(debug)
-				std::cout << "Ok in 6 " << "Number of edges to process is " << grid_size.x <<std::endl;
-			// Expand here and put to expanded_array
-
-
-			expander<<< grid_size, BLOCK_SIZE >>>(
-				process_vetxes, inter_vertex,
-				temp_from, temp_to,
-				graph.full_vertex_array, graph.full_edge_array,
-				position_in_array,
-				expanded_array,
-				from_vertex_array,
-				inter_vertex_array,
-				number_edges_to_process,
-				graph.number_of_vertex,
-				current_level,
-				positions_vertex_current_level);
-
-			cudaDeviceSynchronize();
-			if (debug)
-			  std::cout << "Ok in 9" << std::endl;
-			device_free(temp_from);
-			device_free(temp_to);
-			device_free(process_vetxes);
-			cudaFree(0);
-
-
-			/*
-			*	Remove empty, non used data
+				*	Remove empty, non used data
 				*/
-			remove(device,
-				make_zip_iterator(
-					make_tuple(expanded_array,
-										 from_vertex_array,
-										 inter_vertex_array)),
-				make_zip_iterator(
-					make_tuple(expanded_array + full_size,
-				   					 from_vertex_array + full_size,
-										 inter_vertex_array + full_size)),
-				make_tuple(-1,-1,-1));
-
-			if (debug)
-			{
-				int num = full_size;
-				domain temp_array = new vertex[num];
-				std::cout << "Expanded candidates " << std::endl;
-				copy(from_vertex_array, from_vertex_array + num, temp_array);
-				for(int i=0; i < num; i++)
-					std::cout << temp_array[i] << " ";
-				std::cout << std::endl;
-
-				copy(inter_vertex_array, inter_vertex_array + num, temp_array);
-				for(int i=0; i < num; i++)
-					std::cout << temp_array[i] << " ";
-				std::cout << std::endl;
-
-				copy(expanded_array, expanded_array + num, temp_array);
-				for(int i=0; i < num; i++)
-					std::cout << temp_array[i] << " ";
-				std::cout << std::endl;
-
-
-				delete temp_array;
-
-			}
-
-			if(debug)
-				std::cout << "Ok in 10" << std::endl;
-
-
-			// STEP 2: Forming offset for unifier function
-			inclusive_scan(device, positions_vertex_current_level,
-									           positions_vertex_current_level + graph.number_of_vertex,
-									           positions_vertex_current_level);
-
-			if(debug)
-				std::cout << "Position vertex " << positions_vertex_current_level[graph.number_of_vertex - 1] << std::endl;
-
-			device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
-		  //fill(device, vertex_ending_offsets, vertex_ending_offsets + graph.number_of_vertex, 0);
-
-			device_ptr<vertex> expanded_array_copy = device_malloc<vertex>(
-											positions_vertex_current_level[graph.number_of_vertex - 1]);
-
-			device_ptr<vertex> from_vertex_array_copy = device_malloc<vertex>(
-											positions_vertex_current_level[graph.number_of_vertex - 1]);
-
-			device_ptr<vertex> inter_vertex_array_copy = device_malloc<vertex>(
-														positions_vertex_current_level[graph.number_of_vertex - 1]);
-
-			device_ptr<int> remove_candidates = device_malloc<int>(
-						positions_vertex_current_level[graph.number_of_vertex - 1]);
-
-			device_ptr<int> indices = device_malloc<int>(full_size);
-
-			// Remove all dublicates. Calculate the opacity, remove if needed
-
-			dim3 grid_size_uni((graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE);
-			unifier <<<grid_size_uni, BLOCK_SIZE >>>(
-																								expanded_array,
-																								//expanded_array_copy,
-																							 	from_vertex_array,
-																								from_vertex_array_copy,
-																								inter_vertex_array,
-																								inter_vertex_array_copy,
-																								indices,
-																								positions_vertex_current_level,
-																							//	indices,
-																							//	graph.max_degree,
-																				      //  graph.threshold,
-																								vertex_ending_offsets,
-																								graph.number_of_vertex);
-
-			cudaDeviceSynchronize();
-			// Now we have unique expanded_copy_array
-
-			int proceed_size = vertex_ending_offsets[graph.number_of_vertex - 1];
-
-			//reduce(device, vertex_ending_offsets,
-			//							 vertex_ending_offsets + graph.number_of_vertex);
-			/*
-			if (debug)
-				std::cout << "proceed_size " << proceed_size << std::endl;
-
-  		device_ptr<vertex> from_degree = device_malloc<vertex>(proceed_size);
-			device_ptr<vertex> to_degree = device_malloc<vertex>(proceed_size);
-
-			transform(
-							device,
-		 					make_permutation_iterator(graph.initial_vertex_degrees,
-																				from_vertex_array_copy),
-		 					make_permutation_iterator(graph.initial_vertex_degrees,
-																				from_vertex_array_copy + proceed_size),
-		 					from_degree, identity<vertex>());
-
-			transform(
-							device,
-							make_permutation_iterator(graph.initial_vertex_degrees,
-																				expanded_array_copy),
-							make_permutation_iterator(graph.initial_vertex_degrees,
-																				expanded_array_copy + proceed_size),
-							to_degree, identity<vertex>());
-
-			transform(
-							device,
-							make_zip_iterator(make_tuple(from_degree, to_degree)),
-							make_zip_iterator(make_tuple(from_degree+proceed_size, to_degree+proceed_size)),
-							make_zip_iterator(make_tuple(from_degree,to_degree)),
-							min_max_transform());
-
-
-
-						if (debug)
-							std::cout << "Opacity pre_calculation";
-
-						int gridsize =(proceed_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-						opacity_former<<<gridsize, BLOCK_SIZE>>>(from_degree,
-																										 to_degree,
-																										 graph.degree_count,
-																										 graph.opacity_matrix,
-																										 graph.lessL_matrix,
-																										 expanded_array_copy,
-																										 graph.max_degree, graph.threshold,proceed_size);
-						cudaDeviceSynchronize();
-
-
-			// Expanded array contains -1 and all edges what to remove
-			// expanded_array_copy can be copied to full_edge_array
-
-			// Remove all -1. Now expanded array contain all vertex to remove
-			graph.print_opacity_matrix();
-
-			int ending_step_2 = positions_vertex_current_level[graph.number_of_vertex - 1];
-			zip_iterator< tuple < device_ptr<int>,  device_ptr<int>,  device_ptr<int> > > new_ending =
-			remove_if(
-				device,
-				make_zip_iterator(make_tuple(expanded_array,
-																		 from_vertex_array,
-																		 inter_vertex_array)),
-				make_zip_iterator(make_tuple(expanded_array + ending_step_2,
-																		 from_vertex_array + ending_step_2,
-																		 inter_vertex_array + ending_step_2)),
-				is_minus_one()
-				);
-			// The size of edges to remove :
-			device_ptr<int> temp_ptr = get<0>(new_ending.get_iterator_tuple());
-			int new_size = distance(expanded_array, temp_ptr);
-
-			if (debug)
-			{
-
-				domain temp_array = new vertex[new_size];
-				std::cout << "All edges to remove :" << std::endl;
-				copy(from_vertex_array, from_vertex_array + new_size, temp_array);
-				for(int i=0; i < new_size; i++)
-					std::cout << temp_array[i] << " ";
-				std::cout << std::endl;
-
-				copy(inter_vertex_array, inter_vertex_array + new_size, temp_array);
-				for(int i=0; i < new_size; i++)
-					std::cout << temp_array[i] << " ";
-				std::cout << std::endl;
-
-				copy(expanded_array, expanded_array + new_size, temp_array);
-				for(int i=0; i < new_size; i++)
-					std::cout << temp_array[i] << " ";
-				std::cout << std::endl;
-
-			}
-
-			// Remove all edges that are in expanded_array:
-			dim3 grid_size_remove((new_size + BLOCK_SIZE - 1) / BLOCK_SIZE);
-			// Removing function
-			std::cout << "Removing function " << std::endl;
-			/*
-			remover <<< grid_size_remove, BLOCK_SIZE >>>
-																		(graph.full_vertex_array,
-																		 graph.full_edge_array,
-																		 from_vertex_array,
-																		 inter_vertex_array,
-																		 expanded_array,
-																		 graph.real_vertex_degrees,
-																		 0,
-																		 graph.number_of_vertex,
-																		 0,
-																		 new_size);
-						std::cout << "Ok in 11" << std::endl;
-
-			remove(device,
-						 graph.full_edge_array,
-						 graph.full_edge_array + 2*graph.number_of_edges,
-						 -1);
-
-			inclusive_scan(device, new_vertex_array,
-														 new_vertex_array + graph.number_of_vertex,
-														 graph.full_vertex_array);
-			*/
-
-			/***************************************************
-			*			Break point
-			*			Recalculate at each level, or apsp
-			****************************************************/
-			copy(device, vertex_ending_offsets,
-				vertex_ending_offsets + graph.number_of_vertex,
-				graph.full_vertex_array + current_level * graph.number_of_vertex);
-
-
-			inclusive_scan(device,
-				graph.full_vertex_array + current_level * graph.number_of_vertex - 1,
-				graph.full_vertex_array + (current_level + 1) * graph.number_of_vertex,
-				graph.full_vertex_array + current_level * graph.number_of_vertex - 1);
+				remove_if(device,
+					make_zip_iterator(
+						make_tuple(expanded_array,
+											 inter_vertex_array)),
+					make_zip_iterator(
+						make_tuple(expanded_array + full_size,
+					   					 inter_vertex_array + full_size)),
+					is_minus_one());
+				/*********************************    Expander kernel finished ************************************/
 
 				if (debug)
 				{
-					int num = graph.number_of_vertex;
-					int new_num = positions_vertex_current_level[graph.number_of_vertex - 1];
-					domain temp_array = new vertex[graph.number_of_vertex];
-					std::cout << "After unification " << std::endl;
-					copy(positions_vertex_current_level, positions_vertex_current_level + num, temp_array);
+					int num = full_size;
+					domain temp_array = new vertex[num];
+					std::cout << "Expanded candidates " << std::endl;
+
+					copy(inter_vertex_array, inter_vertex_array + num, temp_array);
 					for(int i=0; i < num; i++)
 						std::cout << temp_array[i] << " ";
 					std::cout << std::endl;
 
-					copy(vertex_ending_offsets, vertex_ending_offsets + num, temp_array);
+					copy(expanded_array, expanded_array + num, temp_array);
 					for(int i=0; i < num; i++)
 						std::cout << temp_array[i] << " ";
 					std::cout << std::endl;
 					delete temp_array;
-
-					temp_array = new vertex[new_num];
-					copy(expanded_array, expanded_array + new_num, temp_array);
-					for(int i=0; i < new_num; i++)
-						std::cout << temp_array[i] << " ";
-					std::cout << std::endl;
-
-					copy(indices, indices + new_num, temp_array);
-					for(int i=0; i < new_num; i++)
-						std::cout << temp_array[i] << " ";
-					std::cout << std::endl;
-					delete temp_array;
-
-
-
 
 				}
 
-			 std::cout << "Ok in 12" << std::endl;
+				/************************************ Unifier kernel prepare **************************************/
 
-			edge_copier<<<grid_size_uni, BLOCK_SIZE>>>(
-				expanded_array,
-				positions_vertex_current_level,
-				vertex_ending_offsets,
-				graph.full_vertex_array,
-				graph.full_edge_array,
-				current_level,
-				graph.number_of_vertex);
 
-			cudaDeviceSynchronize();
-			 std::cout << "Ok in 13" << std::endl;
+		  	inclusive_scan(device, positions_vertex_current_level,
+									           positions_vertex_current_level + graph.number_of_vertex,
+									           positions_vertex_current_level);
 
-			device_free(positions_vertex_current_level);
-			device_free(vertex_ending_offsets);
-			device_free(position_in_array);
-			device_free(expanded_array_copy);
+ 	  		if(debug)
+  				std::cout << "Position vertex " << positions_vertex_current_level[graph.number_of_vertex - 1] << std::endl;
 
-			//cudaFree(0);
-			 std::cout << "Ok in 14" << std::endl;
+				int true_size = positions_vertex_current_level[graph.number_of_vertex - 1];
+				device_ptr<vertex> vertex_ending_offsets = device_malloc<vertex>(graph.number_of_vertex);
+
+				device_ptr<vertex> from_vertex_array = device_malloc<vertex>(true_size);
+				device_ptr<vertex> expanded_array_copy = device_malloc<vertex>(true_size);
+				device_ptr<vertex> temp_expanded = device_malloc<vertex>(true_size);
+				copy(device, expanded_array, expanded_array + true_size, temp_expanded);
+
+				device_ptr<vertex> inter_vertex_array_copy = device_malloc<vertex>(true_size);
+
+				device_ptr<int> indices = device_malloc<int>(true_size);
+
+				// Remove all dublicates. Calculate the opacity, remove if needed
+				if (debug)
+					std::cout << "Starting unification " << std::endl;
+
+				/******************************************* Unifier kernel start *************************************/
+
+				grid_size = ((graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+				unifier <<<grid_size, BLOCK_SIZE >>>(	expanded_array,
+																							expanded_array_copy,
+																							temp_expanded,
+																							from_vertex_array,
+																							inter_vertex_array,
+																							inter_vertex_array_copy,
+																							indices,
+																							positions_vertex_current_level,
+																							vertex_ending_offsets,
+																							graph.number_of_vertex);
+
+		    cudaDeviceSynchronize();
+				// Now we have unique expanded_array
+
+				int proceed_size = vertex_ending_offsets[graph.number_of_vertex - 1];
+				if (debug)
+				{
+					 int num = graph.number_of_vertex;
+					 int new_num = true_size;
+					 domain temp_array = new vertex[graph.number_of_vertex];
+					 std::cout << "After unification " << std::endl;
+					 copy(positions_vertex_current_level, positions_vertex_current_level + num, temp_array);
+					 for(int i=0; i < num; i++)
+						 std::cout << temp_array[i] << " ";
+					 std::cout << std::endl;
+
+					 copy(vertex_ending_offsets, vertex_ending_offsets + num, temp_array);
+					 for(int i=0; i < num; i++)
+						 std::cout << temp_array[i] << " ";
+					 std::cout << std::endl;
+					 delete temp_array;
+					 temp_array = new vertex[new_num];
+
+					 std::cout << "\n Expanded array copy: " << std::endl;
+					 copy(expanded_array_copy, expanded_array_copy + new_num, temp_array);
+					 for(int i=0; i < new_num; i++)
+						 std::cout << temp_array[i] << " ";
+					 std::cout << std::endl;
+
+					 copy(indices, indices + new_num, temp_array);
+					 for(int i=0; i < new_num; i++)
+						 std::cout << temp_array[i] << " ";
+					 std::cout << std::endl;
+					 delete temp_array;
+				}
+
+				int true_unique_size =
+				reduce(device, vertex_ending_offsets,
+											 vertex_ending_offsets + graph.number_of_vertex);
+
+				device_free(temp_expanded);
+				device_free(inter_vertex_array);
+
+				if (debug)
+					std::cout << "True unique size  " << true_unique_size << std::endl;
+
+				if(debug)
+					std::cout << "unification done " << std::endl;
+
+				/******************************************************* Unifier kernel ready ***********************************************/
+
+				renew_graph_offset(graph, vertex_ending_offsets, current_level);
+
+				if(debug)
+						std::cout << "Starting copier " << std::endl;
+
+				  /******************************************************* Edge copy kernel start  ********************************************/
+
+					temp_expanded = device_malloc<vertex>(true_unique_size);
+					device_ptr<vertex> temp_from_array = device_malloc<vertex>(true_unique_size);
+
+					 temp_edge_copier<<<grid_size, BLOCK_SIZE>>>
+				 			(expanded_array,
+					  	positions_vertex_current_level, vertex_ending_offsets,
+							graph.full_vertex_array,
+					  	temp_from_array, temp_expanded,
+					  	graph.number_of_vertex, current_level);
+
+					cudaDeviceSynchronize();
+					device_free(expanded_array);
+					//device_free(positions_vertex_current_level);
+
+					if (debug)
+					 {
+						 int new_num = true_unique_size;
+
+						 std::cout << "After copier " << std::endl;
+
+						 std::cout << " Temporal expand array: ";
+						 for(int i=0; i < new_num; i++)
+							 std::cout << temp_expanded[i] << " ";
+						 std::cout << std::endl;
+
+						 std::cout << " Temporal from array: ";
+						 for(int i=0; i < new_num; i++)
+							 std::cout << temp_from_array[i] << " ";
+						 std::cout << std::endl;
+
+					 }
+
+
+					/****************************************************** Edge copied finished*********************************************************/
+
+					// Calculate how they will effect on the system
+					calc_L_opacity(graph, temp_from_array, temp_expanded, vertex_ending_offsets, true_unique_size);
+
+					renew_graph_offset(graph, vertex_ending_offsets, current_level);
+
+					// COPY TO EDGE LIST LAST LEVEL
+
+					int temp_offset = graph.full_vertex_array[current_level*graph.number_of_vertex - 1];
+
+					remove_copy_if(device,
+										temp_expanded,
+										temp_expanded + true_unique_size,
+										graph.full_edge_array + temp_offset,
+										negative());
+
+					/******************* Removing candidates former *************/
+
+					// Create removing candidates
+					if (debug)
+					{
+						std::cout << "Forming remove Candidates" << std::endl;
+					}
+					int remove_array_size = transform_removing_edges(
+															 inter_vertex_array_copy,
+															 expanded_array_copy,
+															 positions_vertex_current_level,
+															 true_size,
+															 temp_from_array,
+															 temp_expanded,
+															 graph.number_of_vertex,
+															 true_unique_size);
+
+
+					if (debug)
+					 {
+						 int new_num = true_size;
+						 std::cout << "Candidates to remove are formed " << std::endl;
+
+						 std::cout << "\n From array copy: ";
+
+ 						 for(int i=0; i < new_num; i++)
+	 							 std::cout << from_vertex_array[i] << " ";
+						 std::cout << std::endl;
+
+						 std::cout << "Inter array copy: ";
+
+ 						 for(int i=0; i < new_num; i++)
+	 							 std::cout << inter_vertex_array_copy[i] << " ";
+						 std::cout << std::endl;
+
+
+ 						 std::cout << " Expanded array copy: ";
+
+ 						 for(int i=0; i < new_num; i++)
+	 							 std::cout << expanded_array_copy[i] << " ";
+						 std::cout << std::endl;
+
+					 }
+
+					device_free(temp_expanded);
+					device_free(temp_from_array);
+					device_free(vertex_ending_offsets);
+					device_free(positions_vertex_current_level);
+
+					/********************************* First level remove kernel  ********************************************/
+					if(debug)
+						std::cout << "First level remove kernel started " << std::endl;
+
+					grid_size = (remove_array_size+BLOCK_SIZE-1)/BLOCK_SIZE;
+					first_level_remove<<<grid_size, BLOCK_SIZE>>>(
+																				graph.full_vertex_array,
+																				graph.full_edge_array,
+																				inter_vertex_array_copy,
+																				expanded_array_copy,
+																				remove_array_size);
+					 cudaDeviceSynchronize();
+					 grid_size = (graph.number_of_vertex+BLOCK_SIZE-1)/BLOCK_SIZE;
+					 calc_new_offsets<<<grid_size, BLOCK_SIZE>>>(
+						 												graph.full_vertex_array,
+					 													graph.full_edge_array,
+																		graph.real_vertex_degrees,
+																		graph.number_of_vertex);
+
+
+					 std::cout << "Ok in 13" << std::endl;
+
+					 /********************************* First level  kernel remove finished  ********************************************/
+				/*	 remove(device, graph.full_edge_array,
+													graph.full_edge_array + graph.full_vertex_array[graph.number_of_vertex-1],
+													-1);
+					 inclusive_scan(device, graph.real_vertex_degrees,
+																	graph.real_vertex_degrees + graph.number_of_vertex,
+																	graph.full_vertex_array);
+
+					 fill(make_zip_iterator(make_tuple(graph.opacity_matrix, graph.lessL_matrix)),
+					 			make_zip_iterator(make_tuple(graph.opacity_matrix + graph.max_degree*graph.max_degree,
+																						 graph.lessL_matrix + graph.max_degree*graph.max_degree)),
+								make_tuple(0.0,0.0));
+
+						for(int i=1;i<= current_level; i++)
+						{
+							expand_step(graph, i);
+						} */
+
+
+
+
+					 for(int level = 0; level < current_level; level++)
+						{
+							edge_remove_step(graph,
+															 inter_vertex_array_copy,
+															 expanded_array_copy,
+															 remove_array_size, level);
+						}
+
+						/********************************* All removing finished  ********************************************/
+						/******************************* True removal *******************************************/
+						remove(device, graph.full_edge_array,
+													 graph.full_edge_array + graph.full_vertex_array[graph.number_of_vertex*(current_level+1)-1],
+													 -1);
+						inclusive_scan(device, graph.real_vertex_degrees,
+																	 graph.real_vertex_degrees + graph.number_of_vertex*(current_level + 1),
+																	 graph.full_vertex_array);
+
+
+
+				  device_free(expanded_array_copy);
+					device_free(inter_vertex_array_copy);
+
+				//cudaFree(0);
+				 std::cout << "Ok in 14" << std::endl;
 
 
 	}
@@ -483,7 +924,7 @@ void form_full_level_graph(Graph &graph)
 void order_graph(Graph graph)
 {
 	int	gridsize = (graph.number_of_vertex + BLOCK_SIZE - 1) / BLOCK_SIZE;
-	sorter<<<gridsize, BLOCK_SIZE>>>(graph.full_edge_array, graph.full_vertex_array, graph.number_of_vertex);
+	sorter<<<gridsize, BLOCK_SIZE>>>(graph.full_edge_array, graph.full_vertex_array, 0, graph.number_of_vertex);
 	cudaDeviceSynchronize();
 }
 
@@ -822,7 +1263,8 @@ int main(int argc, char* argv[])
 	std::cout << "Memory 2: " << (long)free_mem/1024/1024 << " Total " << (long)total_mem/1024/1024 << std::endl;
 
 	calc_L_opacity(graph, 1, 1);
-	graph.print_opacity_matrix();
+//	graph.print_opacity_matrix();
+//	graph.print_csr_graph();
 
 	// Something must be removed
 	if (graph.opacity_index[0] != -1)

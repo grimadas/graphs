@@ -46,15 +46,17 @@ __global__  void expander(
   device_ptr<vertex> temp_from, device_ptr<vertex> temp_to,
 	device_ptr<vertex> full_vertex_array, device_ptr<vertex> full_edge_array,
 	device_ptr<vertex> position_in_array,
-	device_ptr<vertex> expanded_array, device_ptr<vertex> from_vertex_array,
+	device_ptr<vertex> expanded_array,
   device_ptr<vertex> inter_vertex_array,
 	int number_edges_to_process, int number_of_vertex,
 	int current_level,
   device_ptr<vertex> vertex_offset)
 {
 
-	int idx = blockIdx.x*blockDim.x + threadIdx.x;
-  if (idx < number_edges_to_process)
+  for (int idx = blockIdx.x * blockDim.x + threadIdx.x;
+             idx < number_edges_to_process;
+             idx += blockDim.x * gridDim.x)
+
   {
     int offset_to_put_exp_array = 0;
   	/*
@@ -82,15 +84,6 @@ __global__  void expander(
     	int planed_size = temp_to[idx] - temp_from[idx];
     	int real_size = distance(expanded_array + offset_to_put_exp_array, current_position);
     	int starting = current_vertex[idx];
-    	// TODO : check real size value
-    	/*
-    	*	Expand the current processing vertex to the size *real size*;
-    	*			Result : 0 0 0 1 1 ... (the vertex from expanded)
-    	*/
-    	copy(device,
-    		make_constant_iterator(starting),
-    		make_constant_iterator(starting) + real_size,
-    		from_vertex_array + offset_to_put_exp_array);
 
       int in_vert = inter_vertex[idx];
       copy(device,
@@ -98,23 +91,63 @@ __global__  void expander(
           make_constant_iterator(in_vert) + real_size,
           inter_vertex_array + offset_to_put_exp_array);
 
+    	vertex* k = raw_pointer_cast(vertex_offset + starting);
+    	atomicAdd(k, real_size);
+    }
+}
+
+/*
+*	Expand array according to it's from and to values
+*	Input : device_ptr<vertex> expanded_array
+*			device_ptr<vertex> position_current_level
+*			device_ptr<vertex> current_ending_offset
+*	Out: 	sorted and normalized expanded_array
+*/
+__global__  void simple_expander(
+	device_ptr<vertex> current_vertex,
+  device_ptr<vertex> temp_from, device_ptr<vertex> temp_to,
+	device_ptr<vertex> full_vertex_array, device_ptr<vertex> full_edge_array,
+	device_ptr<vertex> position_in_array,
+	device_ptr<vertex> expanded_array,
+  int number_edges_to_process, int number_of_vertex,
+	int current_level,
+  device_ptr<vertex> vertex_offset)
+{
+
+  for (int idx = blockIdx.x * blockDim.x + threadIdx.x;
+             idx < number_edges_to_process;
+             idx += blockDim.x * gridDim.x)
+
+  {
+    int offset_to_put_exp_array = 0;
+  	/*
+  	*	For searching in full_edge_list if already discovered
+  	*/
+
+  	if (idx != 0)
+  	{
+  		offset_to_put_exp_array = position_in_array[idx - 1]; // reserved position in expanded array
+  	}
+
+  	/*
+  	*	Copy to expanded array if the edge is unique (was not discovered previously, not equal to vertex itself)
+  	*	Result:			1 2 1 .... (expanded edges)
+  	*/
+  	  device_ptr<vertex> current_position =
+   	  copy_if(device,
+    		make_permutation_iterator(full_edge_array, make_counting_iterator<vertex>(temp_from[idx])),
+    		make_permutation_iterator(full_edge_array, make_counting_iterator<vertex>(temp_to[idx])),
+    		expanded_array + offset_to_put_exp_array,
+    		unique_edge(full_vertex_array, full_edge_array,
+                    current_vertex[idx],
+    		            number_of_vertex, current_level));
+
+    	int planed_size = temp_to[idx] - temp_from[idx];
+    	int real_size = distance(expanded_array + offset_to_put_exp_array, current_position);
+    	int starting = current_vertex[idx];
 
     	vertex* k = raw_pointer_cast(vertex_offset + starting);
     	atomicAdd(k, real_size);
-      /*
-    	if (planed_size != real_size)
-    		if (idx != 0)
-    	{
-    			transform(device, position_in_array + idx - 1,
-    			position_in_array + number_edges_to_process,
-    			position_in_array + idx -1, minus_value(planed_size - real_size));
-    	}
-  		else
-  		{
-  			transform(device, position_in_array,
-  				position_in_array + number_edges_to_process, position_in_array, minus_value(planed_size - real_size));
-  		}
-      */
     }
 }
 
@@ -127,21 +160,23 @@ __global__  void expander(
 */
 __global__ void sorter(device_ptr<vertex> full_edge_array,
 						          device_ptr<vertex> full_vertex_array,
-                      int process_number)
+                      int level,
+                      int number_of_vertex)
 {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
-  if (idx < process_number)
+  if (idx < number_of_vertex)
   {
 	int starting_point = 0;
-	if (idx != 0)
+	if (idx != 0 || level!=0)
 	{
-		starting_point = full_vertex_array[idx - 1];
+		starting_point = full_vertex_array[level*number_of_vertex + idx - 1];
 	}
-	int ending_point = full_vertex_array[idx];
+	int ending_point = full_vertex_array[level*number_of_vertex + idx];
 	// sort
 	sort(device, full_edge_array + starting_point, full_edge_array + ending_point);
   }
 }
+
 
 /*
 *	Sort and remove duplicates in edge_array
@@ -152,44 +187,115 @@ __global__ void sorter(device_ptr<vertex> full_edge_array,
 */
 __global__ void unifier(
 	device_ptr<vertex> expanded_array,
+  device_ptr<vertex> expanded_array_copy,
+  device_ptr<vertex> temp_expanded,
   device_ptr<vertex> from_vertex_array,
-  device_ptr<vertex> from_vertex_array_copy,
   device_ptr<vertex> inter_vertex_array,
   device_ptr<vertex> inter_vertex_array_copy,
   device_ptr<int> indices,
-	device_ptr<vertex> positions_vertex_current_level,
-	device_ptr<vertex> current_ending_offset,
+	device_ptr<int> positions_vertex_current_level,
+	device_ptr<int> current_ending_offset,
   int N)
-	{
+{
 		int idx = blockIdx.x*blockDim.x + threadIdx.x;
     if (idx < N)
     {
-    int start_point = 0;
+      int start_point = 0;
 
-		if (idx != 0)
-		{
-			start_point = positions_vertex_current_level[idx - 1];
+  		if (idx != 0)
+  		{
+  			start_point = positions_vertex_current_level[idx - 1];
 
-		}
-		int end_point = positions_vertex_current_level[idx];
-    //  printf("ZZZ = s", start_point, end_point);
-    //sort(device, expanded_array + start_point, expanded_array + end_point);
-    sequence(device, indices + start_point, indices + end_point);
-    sort_by_key(device, expanded_array + start_point, expanded_array + end_point, indices + start_point);
-    // remove dublicates
-    // Now reorder the ID arrays using the sorted indices
-    thrust::gather(device, indices + start_point, indices + end_point, from_vertex_array + start_point, from_vertex_array_copy + start_point);
-    thrust::gather(device, indices + start_point, indices + end_point, inter_vertex_array + start_point, inter_vertex_array_copy + start_point);
+  		}
+  		int end_point = positions_vertex_current_level[idx];
+      //  printf("ZZZ = s", start_point, end_point);
+      copy(device, make_constant_iterator(idx) + start_point,
+                   make_constant_iterator(idx) + end_point, from_vertex_array + start_point);
+      // ----------------------------- Sorting --------------------------
+      sequence(device, indices + start_point, indices + end_point);
+      sort_by_key(device, expanded_array + start_point, expanded_array + end_point, indices + start_point);
+      // remove dublicates
+      // Now reorder the ID arrays using the sorted indices
 
-    device_ptr<vertex> current_position =
-		unique(device, expanded_array + start_point, expanded_array + end_point);
+      thrust::gather(device, indices + start_point, indices + end_point, inter_vertex_array + start_point, inter_vertex_array_copy + start_point);
+      thrust::gather(device, indices + start_point, indices + end_point, temp_expanded + start_point, expanded_array_copy + start_point);
+      // ---------------------------- Unification ------------------------------
 
-      vertex real_size = distance(expanded_array + start_point, current_position);
-		  current_ending_offset[idx] = real_size;
+      device_ptr<vertex> current_position =
+  		unique(device, expanded_array + start_point, expanded_array + end_point);
+
+      int real_size = distance(expanded_array + start_point, current_position);
+  	  current_ending_offset[idx] = real_size;
 
 
     }
-	}
+}
+
+
+__global__ void simple_unifier(
+  device_ptr<vertex> expanded_array,
+  device_ptr<int> positions_vertex_current_level,
+	device_ptr<int> current_ending_offset,
+  int N)
+{
+		int idx = blockIdx.x*blockDim.x + threadIdx.x;
+    if (idx < N)
+    {
+      int start_point = 0;
+
+  		if (idx != 0)
+  		{
+  			start_point = positions_vertex_current_level[idx - 1];
+
+  		}
+  		int end_point = positions_vertex_current_level[idx];
+      // ----------------------------- Sorting --------------------------
+
+      sort(device, expanded_array + start_point, expanded_array + end_point);
+      // ---------------------------- Unification ------------------------------
+
+      device_ptr<vertex> current_position =
+  		  unique(device, expanded_array + start_point, expanded_array + end_point);
+
+      int real_size = distance(expanded_array + start_point, current_position);
+  	  current_ending_offset[idx] = real_size;
+
+
+    }
+}
+
+
+
+  __global__ void temp_edge_copier(
+    	device_ptr<vertex> expanded_array,
+    	device_ptr<vertex> positions_vertex_current_level,
+    	device_ptr<vertex> current_ending_offset,
+      device_ptr<int> full_vertex_array,
+    	device_ptr<vertex> from_array,
+    	device_ptr<vertex> to_array,
+    	int number_of_vertex, int L_VALUE )
+      {
+      	int idx = blockIdx.x*blockDim.x + threadIdx.x;
+       	 if (idx < number_of_vertex)
+        	{
+          int start_point = 0;
+          if (idx != 0)
+        	{
+        		start_point = positions_vertex_current_level[idx - 1];
+
+        	}
+
+        	int end_point = start_point + current_ending_offset[idx];
+        	int edge_put_list_start = full_vertex_array[L_VALUE *number_of_vertex + idx - 1] - full_vertex_array[L_VALUE *number_of_vertex - 1];
+
+        	copy(device,
+            make_zip_iterator(make_tuple(make_constant_iterator(idx) + start_point, expanded_array + start_point)),
+            make_zip_iterator(make_tuple(make_constant_iterator(idx) + end_point, expanded_array + end_point)),
+            make_zip_iterator(make_tuple(from_array + edge_put_list_start, to_array + edge_put_list_start)));
+        }
+      }
+
+
 
 
 __global__ void edge_copier(
@@ -219,6 +325,73 @@ __global__ void edge_copier(
   	copy(device, expanded_array + start_point, expanded_array + end_point, full_edge_array + edge_put_list_start);
   }
 }
+
+
+
+
+
+
+__global__ void opacity_former(
+      device_ptr<vertex> from,
+      device_ptr<vertex> to,
+      device_ptr<int> opacity_index,
+      device_ptr<vertex> degree_count,
+      device_ptr<opacity> opacity_matrix,
+      device_ptr<opacity> lessL_matrix,
+      device_ptr<vertex> from_vertex_array,
+      device_ptr<vertex> violater,
+      device_ptr<int> new_degrees,
+      int except_state,
+      int max_degree,
+      float threshold,
+      int N)
+{
+        int i = blockIdx.x*blockDim.x + threadIdx.x;
+        if (i < N)
+        {
+        int index = max_degree*(from[i] - 1) + (to[i] - 1);
+        opacity min = degree_count[from[i] - 1] * degree_count[to[i] - 1];
+        opacity* k2 = raw_pointer_cast(lessL_matrix + index);
+     		if (from[i]  == to[i])
+    		{
+          opacity k = degree_count[from[i]-1];
+          min = k * (k-1)/2;
+          atomicAdd(k2, 1.0/2.0);
+        }
+        min = min * 2.0;
+    		opacity* k = raw_pointer_cast(opacity_matrix + index);
+        opacity_index[i] = index;
+    		opacity added_value = 1.0/ (min);
+        //  if (1.0 - *k > 0.001)
+          atomicAdd(k, added_value);
+          atomicAdd(k2, 1.0/2.0);
+
+          if (*k > threshold)
+          {
+            // Can be zero - so subsrit 1
+            if (violater[i] == 0)
+                violater[i] = except_state;
+            violater[i] = -violater[i];
+            atomicAdd(k, -added_value);
+            atomicAdd(k2, -1.0/2.0);
+            int* kz = raw_pointer_cast(new_degrees + from_vertex_array[i]);
+            atomicAdd(kz, -1);
+          }
+
+        }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 __global__ void opacity_former(
 	device_ptr<vertex> from,
@@ -345,6 +518,38 @@ __global__ void opacity_former(
 
 
 
+__global__ void form_remove_array(
+          device_ptr<vertex> expanded_array_copy,
+          device_ptr<int> positions_vertex_current_level,
+          device_ptr<int> temp_from_array,
+          device_ptr<vertex> temp_expanded,
+          int number_of_vertex,
+          int N)
+{
+              int idx = blockIdx.x*blockDim.x + threadIdx.x;
+              if (idx < N)
+              {
+
+                int search_vertex = temp_from_array[idx];
+                int start_point = 0;
+                if (search_vertex!=0)
+                  start_point = positions_vertex_current_level[search_vertex - 1];
+                int end_point = positions_vertex_current_level[search_vertex];
+                int exp_remove = temp_expanded[idx];
+                thrust::pair< device_ptr<int>, device_ptr<int> > search_seq =
+                  equal_range(device, expanded_array_copy + start_point,
+                                      expanded_array_copy + end_point, exp_remove);
+                int start_offset = distance(expanded_array_copy + start_point, search_seq.first);
+                int  ending_offset = distance(expanded_array_copy +start_point, search_seq.second);
+                __syncthreads();
+                transform(device, expanded_array_copy + start_point + start_offset,
+                                  expanded_array_copy + start_point + ending_offset,
+                                  expanded_array_copy + start_point + start_offset,
+                                  to_negative(number_of_vertex+1));
+
+              }
+}
+
 
 
         __global__ void edge_remover(
@@ -368,6 +573,168 @@ __global__ void opacity_former(
 
           }
         }
+
+
+/**
+*   inter_vertex - where find
+*   expanded_vertex - what find
+**/
+__device__ int find_to_remove(
+                    device_ptr<vertex> full_edge_array,
+                    device_ptr<int> full_vertex_array,
+                    vertex inter_vertex, vertex expanded_vertex)
+{
+  int start_offset = 0;
+  if (inter_vertex != 0)
+  {
+      start_offset = full_vertex_array[inter_vertex - 1];
+
+  }
+  int ending_offset = full_vertex_array[inter_vertex];
+  device_ptr<int> start = lower_bound(device,
+                            full_edge_array + start_offset,
+                            full_edge_array + ending_offset, expanded_vertex);
+
+   return start_offset + distance(full_edge_array + start_offset, start);
+
+}
+
+__global__ void first_level_remove(
+      device_ptr<int> full_vertex_array,
+      device_ptr<vertex> full_edge_array,
+      device_ptr<vertex> inter_vertex_array_copy,
+      device_ptr<vertex> expanded_array_copy,
+      int N)
+  {
+        int idx = blockIdx.x*blockDim.x + threadIdx.x;
+        if (idx < N)
+        {
+          int inter_vertex = inter_vertex_array_copy[idx];
+          int expanded_vertex = expanded_array_copy[idx];
+
+          int direct_remove = find_to_remove(full_edge_array,
+                                             full_vertex_array,
+                                             inter_vertex, expanded_vertex);
+          int inverse_remove = find_to_remove(full_edge_array, full_vertex_array,
+                                              expanded_vertex, inter_vertex);
+          __syncthreads();
+          full_edge_array[direct_remove] = -1;
+          full_edge_array[inverse_remove] = -1;
+
+        }
+
+  }
+
+__global__ void calc_new_offsets(
+              device_ptr<int> full_vertex_array,
+              device_ptr<vertex> full_edge_array,
+              device_ptr<int> new_vertex_array,
+              int number_of_vertex)
+  {
+    for (int idx = blockIdx.x * blockDim.x + threadIdx.x;
+               idx < number_of_vertex;
+               idx += blockDim.x * gridDim.x)
+      {
+        int start_offset = 0;
+        if (idx != 0)
+        {
+            start_offset = full_vertex_array[idx - 1];
+
+        }
+        int ending_offset = full_vertex_array[idx];
+        sort(device, full_edge_array + start_offset,
+                     full_edge_array + ending_offset);
+        int added_value = count(device, full_edge_array + start_offset,
+                      full_edge_array + ending_offset, -1);
+        int* k = raw_pointer_cast(new_vertex_array + idx);
+        atomicAdd(k, -added_value);
+      }
+
+  }
+
+
+        /**
+        *
+        *   Input: - Expanded vertex value - what should be found
+        *          - start_points - starting offset where to search
+        *          - end_points - ending offset where to search
+        *          - vertex_index_array - vertex index where inter_vertex was found
+        *          - full_vertex_array, full_edge_array - graph properties
+        *          - new_vertex_array - new array degree offset
+        *          - current_level - current search level, N - number of to process
+        *     Total time:  N/p * d * (log(d) + 1)
+        *     Total memory: O(N*d)
+        *     Functionality:
+        *              For each offset :
+        *                 create array T[](O(max_degree)?);
+        *                 find in graph(level + 1) expanded value
+        *                 if found: put in array T
+        *              __sync
+        *              For each t in  T:
+        *                    if t not null - mark edge to delete
+        *
+        **/
+      __global__ void edge_remove_by_vertex(
+        device_ptr<vertex> expanded_array_copy,
+        device_ptr<unsigned int> start_points,
+        device_ptr<unsigned int> end_points,
+        device_ptr<int> vertex_index_array,
+        device_ptr<int> removing_offsets,
+        device_ptr<int> removing_vertexes,
+        device_ptr<int> full_vertex_array,
+        device_ptr<vertex> full_edge_array,
+        device_ptr<int> new_vertex_array,
+        int number_of_vertex,
+        int current_level,
+
+        int N)
+      {
+
+        int idx = blockIdx.x*blockDim.x + threadIdx.x;
+        if (idx < N)
+        {
+          int expanded_vertex = expanded_array_copy[idx];
+          const int total_size = end_points[idx] - start_points[idx];
+          //int* const l = &total_size;
+          int added_offset = 0;
+          if (idx!=0)
+              added_offset = removing_offsets[idx-1];
+
+          for (int i=start_points[idx]; i < end_points[idx]; i++)
+          {
+
+            int found_vertex = vertex_index_array[i];
+            int start_offset  = full_vertex_array[number_of_vertex * (current_level + 1) - 1 + found_vertex];
+
+            int ending_offset = full_vertex_array[number_of_vertex * (current_level + 1) + found_vertex];
+            device_ptr<int> start = lower_bound(device,
+                                      full_edge_array + start_offset,
+                                      full_edge_array + ending_offset, expanded_vertex);
+            int index_to_remove = distance(full_edge_array + start_offset,
+                                                                start);
+            if (full_edge_array[start_offset + index_to_remove] == expanded_vertex)
+            {
+              removing_vertexes[added_offset + i - start_points[idx]] = start_offset + index_to_remove;
+            }
+
+          }
+          __syncthreads();
+          for (int i= 0 ; i < end_points[idx] - start_points[idx]; i++)
+          {
+            if (removing_vertexes[added_offset + i] != -1)
+            {
+                // remove procedure
+                full_edge_array[removing_vertexes[added_offset + i]] = -1;
+                int* k = raw_pointer_cast(new_vertex_array + vertex_index_array[i + start_points[idx]]);
+                atomicAdd(k, -1);
+
+            }
+          }
+
+
+          }
+      }
+
 
 
 

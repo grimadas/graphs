@@ -144,8 +144,10 @@ bool directed;
 		}
 
 		std::cout << "\n Real vertex degree :";
-		copy(real_vertex_degrees, real_vertex_degrees + number_of_vertex, a);
-		for(int i=0; i < number_of_vertex; i++)
+		delete a;
+		a = new int[L_VALUE*number_of_vertex];
+		copy(real_vertex_degrees, real_vertex_degrees + L_VALUE*number_of_vertex, a);
+		for(int i=0; i < L_VALUE*number_of_vertex; i++)
 		{
 			 std::cout << a[i] << " ";
 		}
@@ -276,7 +278,7 @@ bool directed;
 		delete from_array_host, to_array_host;
 
 		initial_vertex_degrees = device_malloc<vertex>(number_of_vertex);
-		real_vertex_degrees = device_malloc<vertex>(number_of_vertex);
+		real_vertex_degrees = device_malloc<vertex>(L_VALUE*number_of_vertex);
 
 		int num_vertex=L_VALUE*number_of_vertex;
 	//	if (!directed)

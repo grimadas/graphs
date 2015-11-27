@@ -58,7 +58,7 @@
 #define _DTH cudaMemcpyDeviceToHost
 #define _HTD cudaMemcpyHostToDevice
 
-const int debug = 1;
+const int debug = 0;
 
 
 
