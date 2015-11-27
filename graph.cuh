@@ -60,6 +60,11 @@ domain from_to_host_matrix;
 device_ptr<vertex> from_array;
 device_ptr<vertex> to_array;
 device_ptr<int> opacity_index;
+int size_from_to;
+
+device_ptr<int> remove_count;
+device_ptr<int> removing_opacity_index;
+int size_check;
 
 // Additional arrays
 device_ptr<int> initial_vertex_degrees;
@@ -278,18 +283,19 @@ bool directed;
 		delete from_array_host, to_array_host;
 
 		initial_vertex_degrees = device_malloc<vertex>(number_of_vertex);
+<<<<<<< HEAD
 		real_vertex_degrees = device_malloc<vertex>(L_VALUE*number_of_vertex);
+=======
+
+>>>>>>> origin/Save_Thrust
 
 		int num_vertex=L_VALUE*number_of_vertex;
-	//	if (!directed)
-	//			num_edges *= 2; // double edges
+		//	if (!directed)
+		//			num_edges *= 2; // double edges
 		full_vertex_array = device_malloc<vertex>(num_vertex);
+		real_vertex_degrees = device_malloc<vertex>(num_vertex);
 		fill(device, full_vertex_array, full_vertex_array + num_vertex, 0);
-
-
 	}
-
-
 
 	/********************************************************************
 	*  Converting from COO (edge list) format to CSR (adjaceny list) format

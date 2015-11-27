@@ -296,8 +296,12 @@ struct to_from_vertex
   {
 
       device_ptr<int> temp_ptr = lower_bound(device, search_array,
+<<<<<<< HEAD
                                                      search_array + size,
                                                      index);
+=======
+                                                     search_array + size, index);
+>>>>>>> origin/Save_Thrust
       int index_vertex = distance(search_array, temp_ptr);
       return index_vertex;
   }
@@ -442,6 +446,7 @@ struct size_counter
       return make_tuple(from_end - from_start, to_end - to_start );
 
   }
+<<<<<<< HEAD
 };
 
 struct to_negative
@@ -479,6 +484,8 @@ struct to_positive
       return -(t);
   }
   int except_state;
+=======
+>>>>>>> origin/Save_Thrust
 };
 
 /****************************************
@@ -513,11 +520,19 @@ struct non_negative
 
 struct negative
 {
+<<<<<<< HEAD
 
   __host__ __device__
   bool operator()(vertex t)
   {
       return t < 0;
+=======
+  template <typename Tuple>
+  __host__ __device__
+  bool operator()(Tuple t)
+  {
+      return get<0>(t) < 0;
+>>>>>>> origin/Save_Thrust
 
   }
 };
