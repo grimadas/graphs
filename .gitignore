@@ -2,3 +2,6 @@
 *.exe
 *.exp
 *.lib
+thrust/
+test_apsp/
+old_graph/
