@@ -1,0 +1,318 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1404\cocoasubrtf110
+{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs22 \cf0 \CocoaLigature0  Vertex degrees :4 4 3 3 3 1 1 5 1 4 1 2 1 1 1 1 \
+ Real vertex degree :3 3 2 3 3 1 1 2 1 4 1 2 1 1 1 1 \
+ Degree count :8 1 3 3 1 \
+ Vertex offset: 3 6 8 11 14 15 16 18 19 23 24 26 27 28 29 30 \
+ Connected Edges \
+			0)	4 9 11 \
+			1)	5 6 8 \
+			2)	10 12 \
+			3)	7 13 15 \
+			4)	0 9 11 \
+			5)	1 \
+			6)	1\
+ 			7)	3 9 \
+			8)	1 \
+			9)	0 4 7 14 \
+			10)	2\
+			11)	0 4 \
+			12)	2\
+			13)	3 \
+			14)	9 \
+			15)	3 \
+\
+0 0 0  \
+4 9 11\
+\
+0 - 2\
+1 - 1 \
+L1: \
+	0)	7 14 \
+	1) - \
+	2) - \
+	3) 9 \
+	4) 7 14\
+	5) 6 8\
+	6) 5 8\
+	7) 0 4 13 14 15 \
+	8) 5 6\
+	9) 11 3 \
+	10) 12\
+	11) \
+\
+\
+\
+\
+\
+power.txt\
+\
+\
+bulat@ubuntu:~/graphs$ ./graphs 4 0.5\
+Reading finidhed\
+Vertex 4941\
+Edges 6594\
+Graph is readed 0.682931 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.002995 seconds\
+Memory 2: 3985 Total 4093\
+Initial lopacity calcualtion 0.001255 seconds\
+Graph is ready for apsp. Initial removal done in  0.001255 seconds\
+Memory 4: 3985 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.000525\
+Level 1 EXPANDER KERNEL 0.022704\
+Level 1 Pre unifier calculation 0.000556\
+Level 1 UNIFIER KERNEL 0.008731\
+Level 1 Copier KERNEL 6.9e-05\
+Level 1 CALC LOPACITY : 0.000156\
+Level 1 Remove Candidates forming : 0.00049\
+Level 1 FIRST level remove 5e-06\
+Level 1 New offset kernel 1.3e-05\
+Ok in 13\
+Ok in 14\
+Forming copy arrays \
+Copy candidates are formed \
+Level 2 Pre expanded time is 0.000729\
+Level 2 EXPANDER KERNEL 0.096861\
+Level 2 Pre unifier calculation 0.00113\
+Level 2 UNIFIER KERNEL 0.00709\
+Level 2 Copier KERNEL 0.000225\
+Level 2 CALC LOPACITY : 0.000435\
+Level 2 Remove Candidates forming : 0.000636\
+Level 2 FIRST level remove 7e-06\
+Level 2 New offset kernel 1.7e-05\
+Ok in 13\
+Ok in 14\
+Forming copy arrays \
+Copy candidates are formed \
+Level 3 Pre expanded time is 0.001342\
+Level 3 EXPANDER KERNEL 0.243863\
+Level 3 Pre unifier calculation 0.000694\
+Level 3 UNIFIER KERNEL 0.007328\
+Level 3 Copier KERNEL 0.000223\
+Level 3 CALC LOPACITY : 0.000518\
+Level 3 Remove Candidates forming : 0.000687\
+Level 3 FIRST level remove 4e-06\
+Level 3 New offset kernel 1.2e-05\
+Ok in 13\
+Ok in 14\
+ \
+ Graph L - apsp time : 0.401567\
+Memory 5: 3978 Total 4093\
+ Opacity matrix calculation time 0\
+ Edge removal function time0\
+\
+\
+\
+\
+\
+\
+\
+bulat@ubuntu:~/graphs$ ./graphs 2 0.01\
+Reading finidhed\
+Vertex 8717\
+Edges 31525\
+Graph is readed 1.66768 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.004716 seconds\
+Memory 2: 3980 Total 4093\
+Initial lopacity calcualtion 0.002333 seconds\
+Graph is ready for apsp. Initial removal done in  0.002333 seconds\
+Memory 4: 3978 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.001113\
+Level 1 EXPANDER KERNEL 0.393131\
+Level 1 Pre unifier calculation 0.001249\
+Level 1 UNIFIER KERNEL 0.035798\
+Level 1 Copier KERNEL 0.001086\
+Level 1 CALC LOPACITY : 0.001066\
+Level 1 Remove Candidates forming : 0.531695\
+Level 1 FIRST level remove 0.639193\
+Level 1 New offset kernel 2.5e-05\
+Ok in 13\
+\
+\
+\
+bulat@ubuntu:~/graphs$ ./graphs 2 0.05\
+Reading finidhed\
+Vertex 8717\
+Edges 31525\
+Graph is readed 1.6703 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.004608 seconds\
+Memory 2: 3980 Total 4093\
+Initial lopacity calcualtion 0.002339 seconds\
+Graph is ready for apsp. Initial removal done in  0.002339 seconds\
+Memory 4: 3978 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.001163\
+Level 1 EXPANDER KERNEL 0.397311\
+Level 1 Pre unifier calculation 0.002338\
+Level 1 UNIFIER KERNEL 0.035972\
+Level 1 Copier KERNEL 0.001271\
+Level 1 CALC LOPACITY : 0.001058\
+Level 1 Remove Candidates forming : 0.068546\
+Level 1 FIRST level remove 0.09937\
+Level 1 New offset kernel 1e-05\
+Ok in 13\
+Ok in 14\
+\
+\
+bulat@ubuntu:~/graphs$ ./graphs 2 0.1\
+Reading finidhed\
+Vertex 8717\
+Edges 31525\
+Graph is readed 1.66052 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.004873 seconds\
+Memory 2: 3980 Total 4093\
+Initial lopacity calcualtion 0.002358 seconds\
+Graph is ready for apsp. Initial removal done in  0.002358 seconds\
+Memory 4: 3978 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.001137\
+Level 1 EXPANDER KERNEL 0.38941\
+Level 1 Pre unifier calculation 0.001373\
+Level 1 UNIFIER KERNEL 0.035655\
+Level 1 Copier KERNEL 0.001155\
+Level 1 CALC LOPACITY : 0.000876\
+Level 1 Remove Candidates forming : 0.024966\
+Level 1 FIRST level remove 0.058031\
+Level 1 New offset kernel 1.2e-05\
+Ok in 13\
+Ok in 14\
+\
+bulat@ubuntu:~/graphs$ ./graphs 3 0.5\
+Reading finidhed\
+Vertex 8717\
+Edges 31525\
+Graph is readed 1.67339 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.004625 seconds\
+Memory 2: 3976 Total 4093\
+Initial lopacity calcualtion 0.002354 seconds\
+Graph is ready for apsp. Initial removal done in  0.002354 seconds\
+Memory 4: 3974 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.001115\
+Level 1 EXPANDER KERNEL 0.38333\
+Level 1 Pre unifier calculation 0.00126\
+Level 1 UNIFIER KERNEL 0.036579\
+Level 1 Copier KERNEL 0.001148\
+Level 1 CALC LOPACITY : 0.00089\
+Level 1 Remove Candidates forming : 0.003174\
+Level 1 FIRST level remove 0.010737\
+Level 1 New offset kernel 1.1e-05\
+Ok in 13\
+Ok in 14\
+Forming copy arrays \
+Copy candidates are formed \
+Level 2 Pre expanded time is 0.002032\
+Level 2 EXPANDER KERNEL 26.2536\
+Level 2 Pre unifier calculation 0.005259\
+Level 2 UNIFIER KERNEL 0.013785\
+\
+85.8147\
+\
+\
+\
+bulat@ubuntu:~/graphs$ ./graphs 2 0.5\
+Reading finidhed\
+Vertex 8717\
+Edges 31525\
+Graph is readed 1.6881 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.004553 seconds\
+Memory 2: 3980 Total 4093\
+Initial lopacity calcualtion 0.002349 seconds\
+Graph is ready for apsp. Initial removal done in  0.002349 seconds\
+Memory 4: 3978 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.001124\
+Level 1 EXPANDER KERNEL 0.399149\
+Level 1 Pre unifier calculation 0.001251\
+Level 1 UNIFIER KERNEL 0.036076\
+Level 1 Copier KERNEL 0.001135\
+Level 1 CALC LOPACITY : 0.000852\
+Level 1 Remove Candidates forming : 0.003506\
+Level 1 FIRST level remove 0.009423\
+Level 1 New offset kernel 1e-05\
+Ok in 13\
+Ok in 14\
+\
+\
+\
+\
+\
+\
+\
+Vertex 4941\
+Edges 6594\
+Graph is readed 0.643444 seconds\
+Memory 1: 3999 Total 4093\
+Time to convert and order + init 0.003032 seconds\
+Memory 2: 3985 Total 4093\
+Initial lopacity calcualtion 0.001288 seconds\
+Graph is ready for apsp. Initial removal done in  0.001288 seconds\
+Memory 4: 3985 Total 4093\
+Forming copy arrays \
+Copy candidates are formed \
+Level 1 Pre expanded time is 0.00052\
+Level 1 EXPANDER KERNEL 0.024729\
+Level 1 Pre unifier calculation 0.000552\
+Level 1 UNIFIER KERNEL 0.009257\
+Level 1 Copier KERNEL 6.7e-05\
+Level 1 CALC LOPACITY : 0.000157\
+Level 1 Remove Candidates forming : 0.002261\
+Level 1 FIRST level remove 0.003073\
+Level 1 New offset kernel 8e-06\
+Ok in 13\
+Ok in 14\
+Forming copy arrays \
+Copy candidates are formed \
+Level 2 Pre expanded time is 0.000705\
+Level 2 EXPANDER KERNEL 0.290064\
+Level 2 Pre unifier calculation 0.000754\
+Level 2 UNIFIER KERNEL 0.063482\
+Level 2 Copier KERNEL 0.000457\
+Level 2 CALC LOPACITY : 0.000361\
+Level 2 Remove Candidates forming : 0.009543\
+Level 2 FIRST level remove 0.018258\
+Level 2 New offset kernel 1e-05\
+Ok in 13\
+Ok in 14\
+Forming copy arrays \
+Copy candidates are formed \
+Level 3 Pre expanded time is 0.001043\
+Level 3 EXPANDER KERNEL 0.127166\
+Level 3 Pre unifier calculation 0.000454\
+Level 3 UNIFIER KERNEL 0.006652\
+Level 3 Copier KERNEL 0.000174\
+Level 3 CALC LOPACITY : 0.000295\
+Level 3 Remove Candidates forming : 0.008796\
+Level 3 FIRST level remove 0.010876\
+Level 3 New offset kernel 8e-06\
+Ok in 13\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+}

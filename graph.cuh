@@ -1,8 +1,8 @@
 /************************************************
-* 												*
-*  CUDA graph representation					*
-*  author: Bulat 								*
-*  graph.h 										*
+*
+*  CUDA graph representation
+*  author: Bulat Nasrulin
+*  graph.h
 *************************************************
 *		la - look ahead parametr
 *		L (L_VALUE) - opacity threshold (1, 2) - small value
@@ -40,17 +40,13 @@
 class Graph {
 
 public:
+
 // CSR with levels graph format
-// Distance matrix in a nuttshell
 device_ptr<vertex> full_vertex_array;
 device_ptr<vertex> full_edge_array;
 
 int L_VALUE;
 float threshold;
-
-// Current
-// domain vertex_current_end; We don't need this ?
-// int current_end;
 
 	// COO graph format (coordinate list)
 domain from_array_host;
@@ -149,10 +145,8 @@ bool directed;
 		}
 
 		std::cout << "\n Real vertex degree :";
-		delete a;
-		a = new int[L_VALUE*number_of_vertex];
-		copy(real_vertex_degrees, real_vertex_degrees + L_VALUE*number_of_vertex, a);
-		for(int i=0; i < L_VALUE*number_of_vertex; i++)
+		copy(real_vertex_degrees, real_vertex_degrees + number_of_vertex, a);
+		for(int i=0; i < number_of_vertex; i++)
 		{
 			 std::cout << a[i] << " ";
 		}
@@ -283,11 +277,7 @@ bool directed;
 		delete from_array_host, to_array_host;
 
 		initial_vertex_degrees = device_malloc<vertex>(number_of_vertex);
-<<<<<<< HEAD
-		real_vertex_degrees = device_malloc<vertex>(L_VALUE*number_of_vertex);
-=======
 
->>>>>>> origin/Save_Thrust
 
 		int num_vertex=L_VALUE*number_of_vertex;
 		//	if (!directed)
